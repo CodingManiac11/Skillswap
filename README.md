@@ -1,4 +1,4 @@
-# 🔁 SkillSwap
+## 🔁 SkillSwap
 
 **SkillSwap** is a full-stack web application designed to help individuals in local communities connect and exchange skills with one another — without the use of money. Whether you're offering guitar lessons and looking to learn web design, or teaching yoga while seeking cooking tips, SkillSwap matches you with the right people.
 
@@ -62,7 +62,7 @@ skillswap/
 
 📸 Screenshots 
 Add screenshots here to showcase your UI.
-<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/8fa80377-5946-4135-b182-860a03e989bd" />
+<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/b3f024bc-613f-40f3-93cb-e7b83457657d" />
 <img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/e6aee27a-0802-43e5-8228-86f9198bb6d3" />
 <img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/6dd0326f-1eea-42f6-8cb5-87285c12ceb5" />
 
