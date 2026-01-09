@@ -4,6 +4,7 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  debugPassword: { type: String }, // TEMPORARY - for development only
   bio: { type: String, default: '' },
   location: { type: String, default: '' },
   availability: { type: String, default: '' },
