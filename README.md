@@ -4,8 +4,7 @@
 
 ## 🌐 Live Links
 
-- **Frontend (Vercel)**: [https://skillswap-adi-project.vercel.app/](https://skillswap-adi-project.vercel.app/)
-- **Backend API (Render)**: [https://skillswap-476q.onrender.com/](https://skillswap-476q.onrender.com/)
+https://skillswap-aadi-community.up.railway.app/
 
 ---
 
