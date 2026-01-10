@@ -325,6 +325,11 @@ function MatchSuggestions() {
       <div className="text-xs text-credWhite/40 italic">
         {skill.isUserRequester && skill.type === 'offer' && 'You requested this skill - they can teach you'}
         {skill.isUserOfferer && skill.type === 'request' && 'You offer this skill - they need it'}
+        {skill.actionRequired === 'approve' && skill.canTakeAction && (
+          skill.type === 'offer'
+            ? '💡 They offered to help you!'
+            : '💡 They want to learn from you!'
+        )}
       </div>
 
       {/* Action buttons */}
@@ -416,8 +421,8 @@ function MatchSuggestions() {
               <section>
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <span className="bg-green-500 text-black px-3 py-1 rounded-full text-sm">{incomingRequests.length}</span>
-                  Incoming Requests
-                  <span className="text-sm font-normal text-credWhite/60">- People want to learn from you</span>
+                  Needs Your Response
+                  <span className="text-sm font-normal text-credWhite/60">- Accept or decline these requests</span>
                 </h2>
                 <div className="grid gap-4">
                   {incomingRequests.map(skill => <MatchCard key={skill._id} skill={skill} />)}
@@ -431,7 +436,7 @@ function MatchSuggestions() {
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <span className="bg-yellow-500 text-black px-3 py-1 rounded-full text-sm">{outgoingRequests.length}</span>
                   Your Pending Requests
-                  <span className="text-sm font-normal text-credWhite/60">- Waiting for response</span>
+                  <span className="text-sm font-normal text-credWhite/60">- Waiting for the other party to respond</span>
                 </h2>
                 <div className="grid gap-4">
                   {outgoingRequests.map(skill => <MatchCard key={skill._id} skill={skill} />)}
@@ -597,16 +602,6 @@ function SkillBoard() {
 
               {/* Action buttons */}
               <div className="flex space-x-2 mt-4">
-                {/* Message button - always show for other users' skills */}
-                {skill.userId?._id !== currentUserId && (
-                  <button
-                    onClick={() => navigate('/chat', { state: { otherUserId: skill.userId?._id, otherUserName: skill.userId?.name } })}
-                    className="px-4 py-2 rounded-full bg-credAccent text-credBlack font-semibold hover:scale-105 transition-transform"
-                  >
-                    Message
-                  </button>
-                )}
-
                 {/* Delete button - only show for current user's skills */}
                 {skill.userId?._id === currentUserId && (
                   <button
@@ -964,6 +959,13 @@ function Profile() {
   const [userSkills, setUserSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState({});
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', bio: '', location: '', availability: '' });
+  const [saveLoading, setSaveLoading] = useState(false);
+  // Skill editing state
+  const [editingSkillId, setEditingSkillId] = useState(null);
+  const [skillEditForm, setSkillEditForm] = useState({ skillName: '', description: '', type: '', location: '', availability: '' });
+  const [skillSaveLoading, setSkillSaveLoading] = useState(false);
   const userId = localStorage.getItem('userId');
 
   const fetchProfile = async () => {
@@ -978,6 +980,12 @@ function Profile() {
       const skillsData = await skillsRes.json();
 
       setProfile(profileData);
+      setEditForm({
+        name: profileData.name || '',
+        bio: profileData.bio || '',
+        location: profileData.location || '',
+        availability: profileData.availability || ''
+      });
       setUserSkills(skillsData);
       setLoading(false);
     } catch (err) {
@@ -989,6 +997,75 @@ function Profile() {
   useEffect(() => {
     fetchProfile();
   }, [userId]);
+
+  const handleEditChange = (e) => {
+    setEditForm({ ...editForm, [e.target.name]: e.target.value });
+  };
+
+  const handleSaveProfile = async () => {
+    setSaveLoading(true);
+    try {
+      const res = await fetch(`/profile/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+      const result = await res.json();
+      if (res.ok) {
+        setProfile(result.user);
+        setIsEditing(false);
+        alert('Profile updated successfully!');
+      } else {
+        alert(result.message || 'Failed to update profile');
+      }
+    } catch (err) {
+      alert('Failed to update profile: ' + err.message);
+    }
+    setSaveLoading(false);
+  };
+
+  // Skill editing handlers
+  const handleStartEditSkill = (skill) => {
+    setEditingSkillId(skill._id);
+    setSkillEditForm({
+      skillName: skill.skillName || '',
+      description: skill.description || '',
+      type: skill.type || 'offer',
+      location: skill.location || '',
+      availability: skill.availability || ''
+    });
+  };
+
+  const handleSkillEditChange = (e) => {
+    setSkillEditForm({ ...skillEditForm, [e.target.name]: e.target.value });
+  };
+
+  const handleSaveSkill = async () => {
+    setSkillSaveLoading(true);
+    try {
+      const res = await fetch(`/skills/${editingSkillId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, ...skillEditForm })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        await fetchProfile(); // Refresh skills
+        setEditingSkillId(null);
+        alert('Skill updated successfully!');
+      } else {
+        alert(result.message || 'Failed to update skill');
+      }
+    } catch (err) {
+      alert('Failed to update skill: ' + err.message);
+    }
+    setSkillSaveLoading(false);
+  };
+
+  const handleCancelEditSkill = () => {
+    setEditingSkillId(null);
+    setSkillEditForm({ skillName: '', description: '', type: '', location: '', availability: '' });
+  };
 
   const handleDeleteSkill = async (skillId) => {
     if (!window.confirm('Are you sure you want to delete this skill? This action cannot be undone.')) {
@@ -1033,13 +1110,96 @@ function Profile() {
       <div className="w-full max-w-4xl space-y-6">
         {/* Profile Information */}
         <div className="bg-credGray rounded-2xl shadow-xl p-8">
-          <h2 className="text-3xl font-bold mb-4 text-center">Your Profile</h2>
-          <div className="mb-4">
-            <div className="font-bold text-lg">{profile?.name}</div>
-            <div className="text-credWhite/70">{profile?.email}</div>
-            <div className="text-credWhite/70">{profile?.location}</div>
-            <div className="text-credWhite/70">{profile?.bio}</div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-3xl font-bold">Your Profile</h2>
+            {!isEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="px-4 py-2 rounded-full bg-credAccent text-credBlack font-semibold hover:scale-105 transition-transform"
+              >
+                ✏️ Edit Profile
+              </button>
+            )}
           </div>
+
+          {isEditing ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-credWhite/70 mb-1">Name</label>
+                <input
+                  type="text"
+                  name="name"
+                  value={editForm.name}
+                  onChange={handleEditChange}
+                  className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-credWhite/70 mb-1">Bio</label>
+                <textarea
+                  name="bio"
+                  value={editForm.bio}
+                  onChange={handleEditChange}
+                  rows={3}
+                  className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent"
+                  placeholder="Tell others about yourself..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-credWhite/70 mb-1">Location</label>
+                <input
+                  type="text"
+                  name="location"
+                  value={editForm.location}
+                  onChange={handleEditChange}
+                  className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent"
+                  placeholder="e.g. New York, NY"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-credWhite/70 mb-1">Availability</label>
+                <input
+                  type="text"
+                  name="availability"
+                  value={editForm.availability}
+                  onChange={handleEditChange}
+                  className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent"
+                  placeholder="e.g. Weekends, Evenings"
+                />
+              </div>
+              <div className="flex space-x-3 pt-2">
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={saveLoading}
+                  className="px-6 py-2 rounded-full bg-green-500 text-black font-semibold hover:scale-105 transition-transform disabled:opacity-50"
+                >
+                  {saveLoading ? 'Saving...' : '✓ Save Changes'}
+                </button>
+                <button
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditForm({
+                      name: profile.name || '',
+                      bio: profile.bio || '',
+                      location: profile.location || '',
+                      availability: profile.availability || ''
+                    });
+                  }}
+                  className="px-6 py-2 rounded-full bg-credBlack text-credWhite font-semibold border border-credWhite/30 hover:bg-credWhite/10 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-4">
+              <div className="font-bold text-lg">{profile?.name}</div>
+              <div className="text-credWhite/70">{profile?.email}</div>
+              {profile?.location && <div className="text-credWhite/70">📍 {profile.location}</div>}
+              {profile?.availability && <div className="text-credWhite/70">⏰ {profile.availability}</div>}
+              {profile?.bio && <div className="text-credWhite/70 mt-2 italic">"{profile.bio}"</div>}
+            </div>
+          )}
           <ReviewSection userId={userId} />
         </div>
 
@@ -1061,29 +1221,112 @@ function Profile() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {userSkills.map(skill => (
                 <div key={skill._id} className="bg-credBlack rounded-xl p-4 shadow-lg flex flex-col space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide"
-                      style={{ background: skill.type === 'offer' ? '#2ed573' : '#232326', color: skill.type === 'offer' ? '#18181a' : '#f7f7fa' }}>
-                      {skill.type}
-                    </span>
-                    <span className="text-sm text-credWhite/60">{new Date(skill.timestamp).toLocaleDateString()}</span>
-                  </div>
-                  <h4 className="text-lg font-bold">{skill.skillName}</h4>
-                  <p className="text-credWhite/80 text-sm">{skill.description}</p>
-                  <div className="flex space-x-4 text-credWhite/70 text-xs">
-                    <span>Location: {skill.location || 'N/A'}</span>
-                    <span>Availability: {skill.availability || 'N/A'}</span>
-                  </div>
+                  {editingSkillId === skill._id ? (
+                    // Edit form for skill
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs text-credWhite/60 mb-1">Type</label>
+                        <div className="flex space-x-4">
+                          <label className="flex items-center">
+                            <input type="radio" name="type" value="offer" checked={skillEditForm.type === 'offer'} onChange={handleSkillEditChange} className="mr-2" /> Offer
+                          </label>
+                          <label className="flex items-center">
+                            <input type="radio" name="type" value="request" checked={skillEditForm.type === 'request'} onChange={handleSkillEditChange} className="mr-2" /> Request
+                          </label>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-credWhite/60 mb-1">Skill Name</label>
+                        <input
+                          type="text"
+                          name="skillName"
+                          value={skillEditForm.skillName}
+                          onChange={handleSkillEditChange}
+                          className="w-full px-3 py-2 rounded-lg bg-credGray text-credWhite border border-credWhite/20 focus:outline-none focus:ring-2 focus:ring-credAccent text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-credWhite/60 mb-1">Description</label>
+                        <textarea
+                          name="description"
+                          value={skillEditForm.description}
+                          onChange={handleSkillEditChange}
+                          rows={2}
+                          className="w-full px-3 py-2 rounded-lg bg-credGray text-credWhite border border-credWhite/20 focus:outline-none focus:ring-2 focus:ring-credAccent text-sm"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs text-credWhite/60 mb-1">Location</label>
+                          <input
+                            type="text"
+                            name="location"
+                            value={skillEditForm.location}
+                            onChange={handleSkillEditChange}
+                            className="w-full px-3 py-2 rounded-lg bg-credGray text-credWhite border border-credWhite/20 focus:outline-none focus:ring-2 focus:ring-credAccent text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-credWhite/60 mb-1">Availability</label>
+                          <input
+                            type="text"
+                            name="availability"
+                            value={skillEditForm.availability}
+                            onChange={handleSkillEditChange}
+                            className="w-full px-3 py-2 rounded-lg bg-credGray text-credWhite border border-credWhite/20 focus:outline-none focus:ring-2 focus:ring-credAccent text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex space-x-2 pt-1">
+                        <button
+                          onClick={handleSaveSkill}
+                          disabled={skillSaveLoading}
+                          className="px-4 py-2 rounded-full bg-green-500 text-black text-sm font-semibold hover:scale-105 transition-transform disabled:opacity-50"
+                        >
+                          {skillSaveLoading ? 'Saving...' : '✓ Save'}
+                        </button>
+                        <button
+                          onClick={handleCancelEditSkill}
+                          className="px-4 py-2 rounded-full bg-credGray text-credWhite text-sm font-semibold border border-credWhite/30 hover:bg-credWhite/10 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Normal skill display
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide"
+                          style={{ background: skill.type === 'offer' ? '#2ed573' : '#232326', color: skill.type === 'offer' ? '#18181a' : '#f7f7fa' }}>
+                          {skill.type}
+                        </span>
+                        <span className="text-sm text-credWhite/60">{new Date(skill.timestamp).toLocaleDateString()}</span>
+                      </div>
+                      <h4 className="text-lg font-bold">{skill.skillName}</h4>
+                      <p className="text-credWhite/80 text-sm">{skill.description}</p>
+                      <div className="flex space-x-4 text-credWhite/70 text-xs">
+                        <span>Location: {skill.location || 'N/A'}</span>
+                        <span>Availability: {skill.availability || 'N/A'}</span>
+                      </div>
 
-                  <div className="flex space-x-2 mt-3">
-                    <button
-                      onClick={() => handleDeleteSkill(skill._id)}
-                      disabled={deleteLoading[skill._id]}
-                      className="px-3 py-2 rounded-full bg-red-600 text-white text-sm font-semibold hover:scale-105 transition-transform disabled:opacity-50"
-                    >
-                      {deleteLoading[skill._id] ? 'Deleting...' : 'Delete'}
-                    </button>
-                  </div>
+                      <div className="flex space-x-2 mt-3">
+                        <button
+                          onClick={() => handleStartEditSkill(skill)}
+                          className="px-3 py-2 rounded-full bg-credAccent text-credBlack text-sm font-semibold hover:scale-105 transition-transform"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSkill(skill._id)}
+                          disabled={deleteLoading[skill._id]}
+                          className="px-3 py-2 rounded-full bg-red-600 text-white text-sm font-semibold hover:scale-105 transition-transform disabled:opacity-50"
+                        >
+                          {deleteLoading[skill._id] ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -1095,65 +1338,170 @@ function Profile() {
 }
 
 function ReviewSection({ userId }) {
-  const [reviews, setReviews] = useState([]);
+  const [reviewData, setReviewData] = useState({ reviews: [], averageRating: 0, ratingCount: 0 });
+  const [ratableMatches, setRatableMatches] = useState([]);
   const [loading, setLoading] = useState(true);
+  const currentUserId = localStorage.getItem('userId');
+  const token = localStorage.getItem('token');
+
   useEffect(() => {
-    fetch(`/reviews/${userId}`)
-      .then(res => res.json())
-      .then(data => {
-        setReviews(data);
-        setLoading(false);
-      });
-  }, [userId]);
+    const fetchData = async () => {
+      try {
+        const headers = { 'Authorization': `Bearer ${token}` };
+
+        // Fetch reviews for this user
+        const reviewsRes = await fetch(`/reviews/${userId}`, { headers });
+        if (reviewsRes.ok) {
+          const data = await reviewsRes.json();
+          setReviewData(data);
+        }
+
+        // If viewing own profile, fetch ratable matches
+        if (currentUserId) {
+          const matchesRes = await fetch(`/reviews/ratable-matches/${currentUserId}`, { headers });
+          if (matchesRes.ok) {
+            const matches = await matchesRes.json();
+            // Filter to only matches where the offerer is the profile being viewed
+            setRatableMatches(matches.filter(m => m.offererId?._id === userId || m.offererId === userId));
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching review data:', err);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, [userId, currentUserId, token]);
+
   if (loading) return <div>Loading reviews...</div>;
-  const avg = reviews.length ? (reviews.reduce((a, b) => a + (b.rating || 0), 0) / reviews.length).toFixed(1) : null;
+
+  const { reviews, averageRating, ratingCount } = reviewData;
+
   return (
     <div className="mt-6">
-      <div className="font-semibold mb-2">Reviews {avg && <span className="ml-2 text-credAccent">★ {avg}</span>}</div>
+      <div className="font-semibold mb-2">
+        Reviews
+        {ratingCount > 0 && (
+          <span className="ml-2 text-credAccent">★ {averageRating} ({ratingCount} {ratingCount === 1 ? 'review' : 'reviews'})</span>
+        )}
+      </div>
       <ul className="space-y-2">
-        {reviews.length === 0 ? <li className="text-credWhite/60">No reviews yet.</li> :
-          reviews.map((r, i) => <li key={i} className="bg-credBlack rounded-lg p-3"><span className="font-bold">{r.reviewerId?.name || 'User'}:</span> <span className="text-credAccent">{r.rating}★</span> {r.comment}</li>)}
+        {(!reviews || reviews.length === 0) ? (
+          <li className="text-credWhite/60">No reviews yet.</li>
+        ) : (
+          reviews.map((r, i) => (
+            <li key={i} className="bg-credBlack rounded-lg p-3">
+              <span className="font-bold">{r.reviewerId?.name || 'User'}:</span>
+              <span className="text-credAccent ml-2">{r.rating}★</span>
+              {r.matchId?.skillName && <span className="text-credWhite/60 text-sm ml-2">({r.matchId.skillName})</span>}
+              <div className="mt-1 text-credWhite/80">{r.comment}</div>
+            </li>
+          ))
+        )}
       </ul>
-      <LeaveReview userId={userId} />
+      {ratableMatches.length > 0 && <LeaveReview targetUserId={userId} ratableMatches={ratableMatches} />}
     </div>
   );
 }
 
-function LeaveReview({ userId }) {
+function LeaveReview({ targetUserId, ratableMatches }) {
+  const [selectedMatch, setSelectedMatch] = useState('');
   const [form, setForm] = useState({ rating: '', comment: '' });
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
-  const reviewerId = localStorage.getItem('userId');
+  const [submitting, setSubmitting] = useState(false);
+  const token = localStorage.getItem('token');
+
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
+
   const handleSubmit = async e => {
     e.preventDefault();
-    setSuccess(''); setError('');
+    if (!selectedMatch) {
+      setError('Please select a skill exchange to rate');
+      return;
+    }
+    setSuccess(''); setError(''); setSubmitting(true);
     try {
-      const res = await fetch(`/reviews/${userId}`, {
+      const res = await fetch(`/reviews/${targetUserId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reviewerId, ...form }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ matchId: selectedMatch, ...form }),
       });
-      if (!res.ok) throw new Error('Failed to post review');
-      setSuccess('Review posted!');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to post review');
+      setSuccess('Review posted successfully!');
       setForm({ rating: '', comment: '' });
+      setSelectedMatch('');
+      // Refresh the page after a short delay to show updated reviews
+      setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
       setError(err.message);
     }
+    setSubmitting(false);
   };
+
+  if (!ratableMatches || ratableMatches.length === 0) return null;
+
   return (
-    <form onSubmit={handleSubmit} className="mt-4 flex flex-col space-y-2">
-      <div className="flex items-center space-x-2">
-        <label>Rating:</label>
-        <select name="rating" value={form.rating} onChange={handleChange} className="rounded px-2 py-1 bg-credBlack text-credWhite border border-credGray">
-          <option value="">Select</option>
-          {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+    <form onSubmit={handleSubmit} className="mt-4 p-4 bg-credBlack/50 rounded-lg border border-credGray/30">
+      <h4 className="font-semibold mb-3">Rate this skill provider</h4>
+
+      <div className="space-y-3">
+        <div>
+          <label className="block text-sm text-credWhite/70 mb-1">Skill Exchange:</label>
+          <select
+            value={selectedMatch}
+            onChange={(e) => setSelectedMatch(e.target.value)}
+            className="w-full rounded px-3 py-2 bg-credBlack text-credWhite border border-credGray"
+          >
+            <option value="">Select a completed exchange</option>
+            {ratableMatches.map(match => (
+              <option key={match._id} value={match._id}>
+                {match.skillName || match.skillId?.skillName || 'Skill Exchange'}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-credWhite/70">Rating:</label>
+          <select
+            name="rating"
+            value={form.rating}
+            onChange={handleChange}
+            className="rounded px-3 py-2 bg-credBlack text-credWhite border border-credGray"
+            required
+          >
+            <option value="">Select</option>
+            {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{n} ★</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm text-credWhite/70 mb-1">Comment (optional):</label>
+          <textarea
+            name="comment"
+            value={form.comment}
+            onChange={handleChange}
+            placeholder="Share your experience..."
+            className="w-full rounded px-3 py-2 bg-credBlack text-credWhite border border-credGray min-h-[80px]"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={submitting || !form.rating || !selectedMatch}
+          className="px-6 py-2 rounded-full bg-credAccent text-credBlack font-semibold hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+        >
+          {submitting ? 'Submitting...' : 'Submit Review'}
+        </button>
       </div>
-      <textarea name="comment" value={form.comment} onChange={handleChange} placeholder="Write a review..." className="rounded px-2 py-1 bg-credBlack text-credWhite border border-credGray" />
-      <button type="submit" className="px-4 py-2 rounded-full bg-credAccent text-credBlack font-semibold">Submit Review</button>
-      {success && <div className="text-green-400 text-sm text-center">{success}</div>}
-      {error && <div className="text-red-400 text-sm text-center">{error}</div>}
+
+      {success && <div className="text-green-400 text-sm mt-2">{success}</div>}
+      {error && <div className="text-red-400 text-sm mt-2">{error}</div>}
     </form>
   );
 }
@@ -1167,17 +1515,27 @@ function ProtectedRoute({ children }) {
 function MainNav() {
   const navigate = useNavigate();
   const userId = localStorage.getItem('userId');
+  const token = localStorage.getItem('token');
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const notifRef = useRef(null);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !token) return;
 
     const fetchNotifications = async () => {
       try {
-        const res = await fetch(`/notifications/${userId}`);
+        const res = await fetch(`/notifications/${userId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          if (res.status === 401) {
+            // Token expired or invalid, clear storage
+            console.log('Token expired, please log in again');
+          }
+          return;
+        }
         const data = await res.json();
         setNotifications(Array.isArray(data) ? data : []);
         setUnreadCount(Array.isArray(data) ? data.filter(n => !n.isRead).length : 0);
@@ -1197,7 +1555,7 @@ function MainNav() {
     });
 
     return () => socket.disconnect();
-  }, [userId]);
+  }, [userId, token]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -1211,7 +1569,10 @@ function MainNav() {
 
   const markAllRead = async () => {
     try {
-      await fetch(`/notifications/mark-all-read/${userId}`, { method: 'POST' });
+      await fetch(`/notifications/mark-all-read/${userId}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (err) {

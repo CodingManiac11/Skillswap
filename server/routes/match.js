@@ -111,18 +111,21 @@ router.get('/:userId', async (req, res) => {
         matchStatus = existingMatch.status;
 
         if (existingMatch.status === 'pending') {
-          // Determine if current user can take action
-          // Only the OFFERER can accept/decline
-          const isCurrentUserOfferer = existingMatch.offererId.toString() === userId;
+          // The person who DIDN'T initiate the match should approve/decline
+          // initiatorId tracks who started the match request
+          const initiatorId = existingMatch.initiatorId ? existingMatch.initiatorId.toString() : null;
+          const isCurrentUserInitiator = initiatorId === userId;
 
-          if (isCurrentUserOfferer) {
+          if (!isCurrentUserInitiator) {
+            // Current user did NOT initiate - they can approve or decline
             actionRequired = 'approve';
             canTakeAction = true;
             waitingFor = null;
           } else {
+            // Current user initiated - they wait for the other party
             actionRequired = 'waiting';
             canTakeAction = false;
-            waitingFor = 'offerer';
+            waitingFor = 'other_party';
           }
         } else if (existingMatch.status === 'accepted') {
           actionRequired = 'chat';
@@ -150,7 +153,8 @@ router.get('/:userId', async (req, res) => {
         waitingFor,
         existingMatchInfo: existingMatch ? {
           requesterId: existingMatch.requesterId,
-          offererId: existingMatch.offererId
+          offererId: existingMatch.offererId,
+          initiatorId: existingMatch.initiatorId
         } : null
       };
     });
@@ -227,14 +231,24 @@ router.post('/action', async (req, res) => {
       skillOwnerType: skill.type
     });
 
-    // Check if match already exists
-    let match = await Match.findOne({ skillId });
+    // Check if match already exists - search by user pair OR skillId
+    let match = await Match.findOne({
+      $or: [
+        { skillId },
+        {
+          requesterId: requesterId,
+          offererId: offererId,
+          skillName: { $regex: new RegExp(`^${skill.skillName}$`, 'i') }
+        }
+      ]
+    });
 
     console.log('Existing match:', match ? {
       id: match._id,
       status: match.status,
       requester: match.requesterId.toString(),
-      offerer: match.offererId.toString()
+      offerer: match.offererId.toString(),
+      initiatorId: match.initiatorId ? match.initiatorId.toString() : 'none'
     } : 'None');
 
     if (action === 'initiate') {
@@ -243,31 +257,50 @@ router.post('/action', async (req, res) => {
         return res.status(400).json({ message: 'Match request already exists for this skill.' });
       }
 
-      // Create new match with pending status
+      // Determine who should approve: the opposite party from the initiator
+      // initiatorId = userId (the current user who initiated)
+      // The OTHER party should approve
+      const approverUserId = skill.type === 'offer' ? offererId : requesterId;
+      const isRequesterInitiating = requesterId.toString() === userId;
+
+      // Create new match with pending status and track who initiated
       match = new Match({
         requesterId,
         offererId,
         skillId,
         skillName: skill.skillName,
-        status: 'pending'
+        status: 'pending',
+        initiatorId: userId // Track who started the match request
       });
       await match.save();
 
-      console.log('Created new match:', match._id);
+      console.log('Created new match:', match._id, 'Initiator:', userId, 'Approver needed:', approverUserId);
 
-      // Create notification for the offerer (they need to approve)
+      // Create notification for the person who needs to approve
+      const notificationMessage = isRequesterInitiating
+        ? `${currentUser.name} wants to learn ${skill.skillName} from you!`
+        : `${currentUser.name} offered to teach you ${skill.skillName}!`;
+
+      const notificationTitle = isRequesterInitiating
+        ? 'New Learning Request!'
+        : 'Someone Offered to Help!';
+
       await createNotification({
-        userId: offererId,
+        userId: approverUserId,
         type: 'match_request',
-        title: 'New Match Request!',
-        message: `${currentUser.name} wants to learn ${skill.skillName} from you!`,
+        title: notificationTitle,
+        message: notificationMessage,
         relatedUserId: userId,
         relatedMatchId: match._id,
         relatedSkillId: skillId
       }, io);
 
+      const responseMessage = isRequesterInitiating
+        ? 'Match request sent! Waiting for approval from the skill provider.'
+        : 'Offer sent! Waiting for the requester to accept your offer.';
+
       res.json({
-        message: 'Match request sent! Waiting for approval from the skill provider.',
+        message: responseMessage,
         match
       });
 
@@ -281,9 +314,26 @@ router.post('/action', async (req, res) => {
         return res.status(400).json({ message: 'This match has already been processed.' });
       }
 
-      // Only the OFFERER can accept/decline
-      if (match.offererId.toString() !== userId) {
-        return res.status(403).json({ message: 'Only the skill provider can accept or decline match requests.' });
+      // Handle backward compatibility for old matches without initiatorId
+      // For old matches, fall back to: offerer approves requests from requester
+      const initiatorId = match.initiatorId ? match.initiatorId.toString() : null;
+
+      if (initiatorId) {
+        // New system: non-initiator approves
+        if (initiatorId === userId) {
+          return res.status(403).json({ message: 'You cannot approve/decline your own request. The other party must respond.' });
+        }
+      } else {
+        // Old matches: only offerer can approve (backward compatibility)
+        if (match.offererId.toString() !== userId) {
+          return res.status(403).json({ message: 'Only the skill provider can accept or decline match requests.' });
+        }
+      }
+
+      // Verify user is involved in this match
+      const isInvolved = match.requesterId.toString() === userId || match.offererId.toString() === userId;
+      if (!isInvolved) {
+        return res.status(403).json({ message: 'You are not involved in this match.' });
       }
 
       // Update match status

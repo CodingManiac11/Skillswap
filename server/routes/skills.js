@@ -44,39 +44,84 @@ router.delete('/:skillId', async (req, res) => {
   try {
     const { skillId } = req.params;
     const { userId } = req.body; // User attempting to delete
-    
+
     console.log('Delete skill request:', { skillId, userId });
-    
+
     if (!userId) {
       return res.status(400).json({ message: 'User ID is required.' });
     }
-    
+
     // Find the skill
     const skill = await Skill.findById(skillId);
     if (!skill) {
       console.log('Skill not found:', skillId);
       return res.status(404).json({ message: 'Skill not found.' });
     }
-    
+
     console.log('Found skill:', { skillUserId: skill.userId, requestUserId: userId });
-    
+
     // Check if the user is the owner of the skill
     if (skill.userId.toString() !== userId.toString()) {
       console.log('Unauthorized delete attempt');
       return res.status(403).json({ message: 'You can only delete your own skills.' });
     }
-    
+
     // Delete the skill
     await Skill.findByIdAndDelete(skillId);
     console.log('Skill deleted successfully');
-    
+
     // Also clean up any matches related to this skill
     await Match.deleteMany({ skillId: skillId });
     console.log('Related matches cleaned up');
-    
+
     res.json({ message: 'Skill deleted successfully.' });
   } catch (err) {
     console.error('Error deleting skill:', err);
+    res.status(500).json({ message: 'Server error: ' + err.message });
+  }
+});
+
+// Update a skill (only by the user who created it)
+router.put('/:skillId', async (req, res) => {
+  try {
+    const { skillId } = req.params;
+    const { userId, skillName, description, availability, location, type } = req.body;
+
+    console.log('Update skill request:', { skillId, userId });
+
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required.' });
+    }
+
+    // Find the skill
+    const skill = await Skill.findById(skillId);
+    if (!skill) {
+      console.log('Skill not found:', skillId);
+      return res.status(404).json({ message: 'Skill not found.' });
+    }
+
+    // Check if the user is the owner of the skill
+    if (skill.userId.toString() !== userId.toString()) {
+      console.log('Unauthorized edit attempt');
+      return res.status(403).json({ message: 'You can only edit your own skills.' });
+    }
+
+    // Update fields if provided
+    if (skillName !== undefined) skill.skillName = skillName;
+    if (description !== undefined) skill.description = description;
+    if (availability !== undefined) skill.availability = availability;
+    if (location !== undefined) skill.location = location;
+    if (type !== undefined && (type === 'offer' || type === 'request')) skill.type = type;
+
+    await skill.save();
+
+    // Return updated skill with populated user
+    const updatedSkill = await Skill.findById(skillId).populate('userId', 'name location');
+    console.log('Skill updated successfully');
+
+    res.json({ message: 'Skill updated successfully.', skill: updatedSkill });
+  } catch (err) {
+    console.error('Error updating skill:', err);
     res.status(500).json({ message: 'Server error: ' + err.message });
   }
 });

@@ -1,9 +1,13 @@
 const express = require('express');
 const Notification = require('../models/Notification');
+const { authMiddleware, validateUserAccess } = require('../middleware/auth');
 const router = express.Router();
 
+// All notification routes require authentication
+router.use(authMiddleware);
+
 // Get all notifications for a user
-router.get('/:userId', async (req, res) => {
+router.get('/:userId', validateUserAccess, async (req, res) => {
     try {
         const notifications = await Notification.find({ userId: req.params.userId })
             .populate('relatedUserId', 'name')
@@ -18,7 +22,7 @@ router.get('/:userId', async (req, res) => {
 });
 
 // Get unread notification count
-router.get('/:userId/unread-count', async (req, res) => {
+router.get('/:userId/unread-count', validateUserAccess, async (req, res) => {
     try {
         const count = await Notification.countDocuments({
             userId: req.params.userId,
@@ -35,6 +39,17 @@ router.get('/:userId/unread-count', async (req, res) => {
 // Mark a notification as read
 router.post('/mark-read/:notificationId', async (req, res) => {
     try {
+        const notification = await Notification.findById(req.params.notificationId);
+
+        if (!notification) {
+            return res.status(404).json({ message: 'Notification not found' });
+        }
+
+        // Verify the notification belongs to the authenticated user
+        if (notification.userId.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
         await Notification.findByIdAndUpdate(req.params.notificationId, { isRead: true });
         res.json({ message: 'Notification marked as read' });
     } catch (err) {
@@ -44,7 +59,7 @@ router.post('/mark-read/:notificationId', async (req, res) => {
 });
 
 // Mark all notifications as read for a user
-router.post('/mark-all-read/:userId', async (req, res) => {
+router.post('/mark-all-read/:userId', validateUserAccess, async (req, res) => {
     try {
         await Notification.updateMany(
             { userId: req.params.userId, isRead: false },

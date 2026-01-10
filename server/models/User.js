@@ -10,11 +10,16 @@ const userSchema = new mongoose.Schema({
   availability: { type: String, default: '' },
   skillsOffered: [{ type: String }],
   skillsRequested: [{ type: String }],
+  // Aggregate rating fields
+  averageRating: { type: Number, default: 0 },
+  ratingCount: { type: Number, default: 0 },
   reviews: [
     {
       reviewerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      matchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Match' },
       rating: Number,
       comment: String,
+      createdAt: { type: Date, default: Date.now }
     }
   ],
 });
