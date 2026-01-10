@@ -45,7 +45,7 @@ router.get('/:userId/all', async (req, res) => {
 
     console.log('Found messages:', messages.length);
 
-    // Group by other user
+    // Group by other user and count unread
     const convMap = {};
     messages.forEach(msg => {
       // Handle cases where user might not be populated
@@ -66,8 +66,14 @@ router.get('/:userId/all', async (req, res) => {
           lastMessage: msg.message,
           lastTimestamp: msg.timestamp,
           isSystemMessage: msg.isSystemMessage || false,
-          hasMessages: true
+          hasMessages: true,
+          unreadCount: 0
         };
+      }
+
+      // Count unread messages (messages TO current user that are not read)
+      if (!isCurrentUserSender && !msg.isRead) {
+        convMap[otherUserId].unreadCount++;
       }
     });
 
@@ -133,6 +139,29 @@ router.get('/:userId/:otherUserId', async (req, res) => {
     res.json(messages);
   } catch (err) {
     console.error('Error fetching messages:', err); // Debug log
+    res.status(500).json({ message: 'Server error.', error: err.message });
+  }
+});
+
+// Mark all messages from a sender as read
+router.post('/mark-read/:userId/:otherUserId', async (req, res) => {
+  try {
+    const { userId, otherUserId } = req.params;
+
+    // Mark all messages FROM otherUser TO currentUser as read
+    const result = await Message.updateMany(
+      {
+        senderId: otherUserId,
+        receiverId: userId,
+        isRead: false
+      },
+      { isRead: true }
+    );
+
+    console.log(`Marked ${result.modifiedCount} messages as read`);
+    res.json({ success: true, markedCount: result.modifiedCount });
+  } catch (err) {
+    console.error('Error marking messages as read:', err);
     res.status(500).json({ message: 'Server error.', error: err.message });
   }
 });

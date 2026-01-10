@@ -53,14 +53,35 @@ io.on('connection', (socket) => {
     // Create unique room ID for this conversation
     const roomId = [userId, otherUserId].sort().join('_');
     socket.join(roomId);
+    // Notify others in the room that this user joined
+    socket.to(roomId).emit('user_joined_chat', { oderId: userId });
     console.log(`💬 User ${userId} joined chat room: ${roomId}`);
   });
 
   // Leave a chat room
   socket.on('leave_chat', ({ userId, otherUserId }) => {
     const roomId = [userId, otherUserId].sort().join('_');
+    // Notify others in the room that this user left
+    socket.to(roomId).emit('user_left_chat', { oderId: userId });
     socket.leave(roomId);
     console.log(`👋 User ${userId} left chat room: ${roomId}`);
+  });
+
+  // Check if a user is in a specific chat room
+  socket.on('check_user_in_chat', ({ otherUserId }, callback) => {
+    const otherSocketId = onlineUsers.get(otherUserId);
+    if (otherSocketId) {
+      const otherSocket = io.sockets.sockets.get(otherSocketId);
+      if (otherSocket) {
+        // Check if other user is in the same chat room
+        const myRooms = Array.from(socket.rooms);
+        const theirRooms = Array.from(otherSocket.rooms);
+        const sharedRoom = myRooms.find(r => r.includes('_') && theirRooms.includes(r));
+        callback(!!sharedRoom);
+        return;
+      }
+    }
+    callback(false);
   });
 
   // Handle sending messages
@@ -148,6 +169,9 @@ app.use('/profile', profileRoutes);
 
 const notificationsRoutes = require('./routes/notifications');
 app.use('/notifications', notificationsRoutes);
+
+const googleRoutes = require('./routes/google');
+app.use('/google', googleRoutes);
 
 // Debug routes to check database contents
 const User = require('./models/User');

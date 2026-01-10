@@ -6,6 +6,7 @@ const messageSchema = new mongoose.Schema({
   message: { type: String, required: true },
   timestamp: { type: Date, default: Date.now },
   isSystemMessage: { type: Boolean, default: false },
+  isRead: { type: Boolean, default: false }, // Track if receiver has read the message
 });
 
 module.exports = mongoose.model('Message', messageSchema); 

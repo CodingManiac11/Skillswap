@@ -43,6 +43,14 @@ function SignUp() {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    // Validate Gmail only
+    if (!form.email.toLowerCase().endsWith('@gmail.com')) {
+      setError('Only Gmail addresses are allowed. Please use a @gmail.com email.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch('/auth/register', {
         method: 'POST',
@@ -648,9 +656,70 @@ function Chat() {
   const [error, setError] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [otherUserOnline, setOtherUserOnline] = useState(false); // Track if other user is online
   const userId = localStorage.getItem('userId');
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
+
+  // Google Meet state
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [creatingMeeting, setCreatingMeeting] = useState(false);
+
+  // Backend URL for API calls (same as socket)
+  const API_URL = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000';
+
+  // Check if Google is connected
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`${API_URL}/google/status/${userId}`)
+      .then(res => res.json())
+      .then(data => setGoogleConnected(data.connected))
+      .catch(() => setGoogleConnected(false));
+  }, [userId, API_URL]);
+
+  // Create Google Meet link
+  const createMeeting = async () => {
+    if (!googleConnected) {
+      // Redirect to Google OAuth on backend
+      window.location.href = `${API_URL}/google/auth/${userId}`;
+      return;
+    }
+
+    setCreatingMeeting(true);
+    try {
+      const res = await fetch(`${API_URL}/google/create-meeting`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          otherUserName,
+          title: `SkillSwap Session with ${otherUserName}`
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.meetLink) {
+        // Send meeting link as a message
+        const meetMessage = `📹 Join our SkillSwap session: ${data.meetLink}`;
+        if (socketRef.current?.connected) {
+          socketRef.current.emit('send_message', {
+            senderId: userId,
+            receiverId: otherUserId,
+            message: meetMessage
+          });
+        }
+      } else if (data.authUrl) {
+        // Need to re-authenticate
+        window.location.href = `${API_URL}${data.authUrl}`;
+      } else {
+        setError(data.error || 'Failed to create meeting');
+      }
+    } catch (err) {
+      setError('Failed to create meeting');
+    }
+    setCreatingMeeting(false);
+  };
 
   // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -707,6 +776,28 @@ function Chat() {
       setConnected(false);
     });
 
+    // Listen for other user joining/leaving chat
+    socket.on('user_joined_chat', ({ oderId }) => {
+      if (oderId === otherUserId) {
+        setOtherUserOnline(true);
+      }
+    });
+
+    socket.on('user_left_chat', ({ oderId }) => {
+      if (oderId === otherUserId) {
+        setOtherUserOnline(false);
+      }
+    });
+
+    // Check if other user is already in chat
+    socket.emit('check_user_in_chat', { otherUserId }, (isInChat) => {
+      setOtherUserOnline(isInChat);
+    });
+
+    // Mark messages from other user as read when opening chat
+    fetch(`/messages/mark-read/${userId}/${otherUserId}`, { method: 'POST' })
+      .catch(err => console.log('Could not mark messages as read:', err));
+
     // Fetch existing messages
     fetch(`/messages/${userId}/${otherUserId}`)
       .then(res => res.json())
@@ -727,6 +818,8 @@ function Chat() {
       socket.off('user_typing');
       socket.off('connect');
       socket.off('connect_error');
+      socket.off('user_joined_chat');
+      socket.off('user_left_chat');
     };
   }, [userId, otherUserId]);
 
@@ -793,14 +886,24 @@ function Chat() {
           <div className="text-center">
             <h2 className="text-xl font-bold">{otherUserName || 'User'}</h2>
             <div className="text-xs text-credWhite/60">
-              {connected ? (
+              {!connected ? (
+                <span className="text-yellow-400">Connecting...</span>
+              ) : otherUserOnline ? (
                 <span className="text-green-400">● Online</span>
               ) : (
-                <span className="text-yellow-400">Connecting...</span>
+                <span className="text-credWhite/40">○ Offline</span>
               )}
             </div>
           </div>
-          <div className="w-12"></div>
+          <button
+            onClick={createMeeting}
+            disabled={creatingMeeting}
+            className="px-3 py-1.5 rounded-full bg-blue-600 text-white text-sm font-semibold hover:scale-105 transition-transform disabled:opacity-50 flex items-center gap-1"
+            title={googleConnected ? 'Create Google Meet' : 'Connect Google to create meetings'}
+          >
+            {creatingMeeting ? '...' : '📹'}
+            <span className="hidden sm:inline">{googleConnected ? 'Meet' : 'Connect'}</span>
+          </button>
         </div>
 
         {/* Messages Container */}
@@ -834,7 +937,27 @@ function Chat() {
                         : 'bg-credGray text-credWhite border border-credAccent/30 rounded-bl-sm'
                         }`}
                     >
-                      <p className="break-words">{msg.message}</p>
+                      <p className="break-words">
+                        {msg.message.includes('meet.google.com') ? (
+                          <>
+                            {msg.message.split(/(https:\/\/meet\.google\.com\/[a-z-]+)/gi).map((part, idx) =>
+                              part.match(/https:\/\/meet\.google\.com\/[a-z-]+/i) ? (
+                                <a
+                                  key={idx}
+                                  href={part}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-3 py-1 mt-1 rounded-full bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+                                >
+                                  📹 Join Meeting
+                                </a>
+                              ) : (
+                                <span key={idx}>{part}</span>
+                              )
+                            )}
+                          </>
+                        ) : msg.message}
+                      </p>
                     </div>
                     <div className={`text-xs text-credWhite/40 mt-1 ${msg.senderId === userId ? 'text-right' : 'text-left'}`}>
                       {formatTime(msg.timestamp)}
@@ -929,16 +1052,25 @@ function ChatList() {
             {(Array.isArray(conversations) ? conversations : []).map(conv => (
               <li key={conv.otherUserId} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 bg-credBlack rounded-lg p-4">
                 <div className="flex-1">
-                  <div className="font-bold flex items-center">
+                  <div className="font-bold flex items-center gap-2">
                     {conv.otherUserName || 'User'}
+                    {conv.unreadCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-xs font-bold min-w-[20px] text-center">
+                        {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+                      </span>
+                    )}
                     {conv.skillName && (
-                      <span className="ml-2 px-2 py-1 rounded-full bg-credAccent text-credBlack text-xs">
+                      <span className="px-2 py-1 rounded-full bg-credAccent text-credBlack text-xs">
                         {conv.skillName}
                       </span>
                     )}
                   </div>
-                  <div className={`text-sm ${conv.isSystemMessage ? 'text-yellow-200 italic' : 'text-credWhite/70'}`}>
-                    Last: {conv.lastMessage || 'No messages yet.'}
+                  <div className={`text-sm ${conv.isSystemMessage ? 'text-yellow-200 italic' : 'text-credWhite/70'} line-clamp-1`}>
+                    {conv.lastMessage
+                      ? (conv.lastMessage.length > 50
+                        ? conv.lastMessage.substring(0, 50) + '...'
+                        : conv.lastMessage)
+                      : 'No messages yet.'}
                   </div>
                   <div className="text-xs text-credWhite/50">
                     {conv.lastTimestamp && new Date(conv.lastTimestamp).toLocaleString()}

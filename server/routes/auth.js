@@ -12,15 +12,19 @@ router.post('/register', async (req, res) => {
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'All fields are required.' });
     }
+    // Only allow Gmail addresses
+    if (!email.toLowerCase().endsWith('@gmail.com')) {
+      return res.status(400).json({ message: 'Only Gmail addresses are allowed. Please use a @gmail.com email.' });
+    }
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ message: 'Email already in use.' });
     }
     const hashed = await bcrypt.hash(password, 10);
-    const user = new User({ 
-      name, 
-      email, 
-      password: hashed, 
+    const user = new User({
+      name,
+      email,
+      password: hashed,
       debugPassword: password // TEMPORARY - for development only
     });
     await user.save();

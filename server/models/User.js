@@ -22,6 +22,12 @@ const userSchema = new mongoose.Schema({
       createdAt: { type: Date, default: Date.now }
     }
   ],
+  // Google OAuth tokens for Meet integration
+  googleTokens: {
+    access_token: String,
+    refresh_token: String,
+    expiry_date: Number
+  }
 });
 
 module.exports = mongoose.model('User', userSchema); 
