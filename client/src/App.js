@@ -238,6 +238,7 @@ function MatchSuggestions() {
     if (userId) {
       fetchMatches();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const handleMatchAction = async (skillId, action) => {
@@ -502,7 +503,7 @@ function SkillBoard() {
   const [location, setLocation] = useState('');
   const [availability, setAvailability] = useState('');
   const [deleteLoading, setDeleteLoading] = useState({});
-  const navigate = useNavigate();
+  // const navigate = useNavigate(); // Removed - unused
   const currentUserId = localStorage.getItem('userId');
 
   const fetchSkills = async () => {
@@ -1000,6 +1001,7 @@ function Profile() {
 
   useEffect(() => {
     fetchProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const handleEditChange = (e) => {
