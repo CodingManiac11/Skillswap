@@ -149,11 +149,12 @@ router.post('/mark-read/:userId/:otherUserId', async (req, res) => {
     const { userId, otherUserId } = req.params;
 
     // Mark all messages FROM otherUser TO currentUser as read
+    // Use $ne: true to catch both false and undefined (old messages)
     const result = await Message.updateMany(
       {
         senderId: otherUserId,
         receiverId: userId,
-        isRead: false
+        isRead: { $ne: true }  // Match false OR undefined
       },
       { isRead: true }
     );
