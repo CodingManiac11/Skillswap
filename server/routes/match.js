@@ -198,6 +198,11 @@ router.post('/action', async (req, res) => {
     const skill = await Skill.findById(skillId).populate('userId');
     if (!skill) return res.status(404).json({ message: 'Skill not found.' });
 
+    // Check if skill owner still exists
+    if (!skill.userId) {
+      return res.status(404).json({ message: 'Skill owner no longer exists.' });
+    }
+
     // Get the current user
     const currentUser = await User.findById(userId);
     if (!currentUser) return res.status(404).json({ message: 'User not found.' });
@@ -206,8 +211,8 @@ router.post('/action', async (req, res) => {
       id: skill._id,
       type: skill.type,
       name: skill.skillName,
-      owner: skill.userId.name,
-      ownerId: skill.userId._id
+      owner: skill.userId?.name || 'Unknown',
+      ownerId: skill.userId?._id
     });
 
     // Determine who is the requester and who is the offerer
