@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -8,10 +9,15 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// Socket.IO with CORS
+// Determine allowed origins based on environment
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? [process.env.FRONTEND_URL || true] // Allow same origin in production
+  : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+
+// Socket.IO with dynamic CORS
 const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -349,9 +355,21 @@ app.get('/debug/matches', async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => {
-  res.send('SkillSwap API is running');
-});
+// Production: Serve React build
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from React build
+  app.use(express.static(path.join(__dirname, '../client/build')));
+
+  // Handle React routing - serve index.html for all non-API routes
+  // Express 5 requires named parameters for wildcards
+  app.get('/{*path}', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.send('SkillSwap API is running');
+  });
+}
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {

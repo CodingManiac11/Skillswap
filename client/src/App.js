@@ -623,9 +623,13 @@ function SkillBoard() {
 
 // Socket.IO connection singleton
 let socket = null;
+const SOCKET_URL = process.env.NODE_ENV === 'production'
+  ? window.location.origin
+  : 'http://localhost:5000';
+
 const getSocket = () => {
   if (!socket) {
-    socket = io('http://localhost:5000', {
+    socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       autoConnect: true
     });
@@ -1546,7 +1550,7 @@ function MainNav() {
 
     fetchNotifications();
 
-    const socket = io('http://localhost:5000', { transports: ['websocket', 'polling'] });
+    const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
     socket.on('new_notification', (data) => {
       if (data.userId === userId) {
         setNotifications(prev => [data.notification, ...prev]);
