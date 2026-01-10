@@ -5,15 +5,15 @@ import { io } from 'socket.io-client';
 function Landing() {
   const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-credBlack text-credWhite font-display flex flex-col items-center justify-center">
-      <header className="w-full max-w-2xl mx-auto flex flex-col items-center py-12">
-        <h1 className="text-5xl font-bold mb-4 tracking-tight">SkillSwap</h1>
-        <p className="text-xl mb-8 text-credAccent">Local Community Skill Exchange Platform</p>
-        <div className="flex space-x-4 mb-12">
-          <button onClick={() => navigate('/signup')} className="px-8 py-3 rounded-full bg-credAccent text-credBlack font-semibold text-lg shadow-lg hover:scale-105 transition-transform">Sign Up</button>
-          <button onClick={() => navigate('/login')} className="px-8 py-3 rounded-full border border-credAccent text-credAccent font-semibold text-lg hover:bg-credGray hover:text-credWhite transition-colors">Log In</button>
+    <div className="min-h-screen bg-credBlack text-credWhite font-display flex flex-col items-center justify-center px-4">
+      <header className="w-full max-w-2xl mx-auto flex flex-col items-center py-8 sm:py-12">
+        <h1 className="text-3xl sm:text-5xl font-bold mb-4 tracking-tight text-center">SkillSwap</h1>
+        <p className="text-lg sm:text-xl mb-8 text-credAccent text-center">Local Community Skill Exchange Platform</p>
+        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 mb-8 sm:mb-12 w-full sm:w-auto">
+          <button onClick={() => navigate('/signup')} className="px-6 sm:px-8 py-3 rounded-full bg-credAccent text-credBlack font-semibold text-base sm:text-lg shadow-lg hover:scale-105 transition-transform">Sign Up</button>
+          <button onClick={() => navigate('/login')} className="px-6 sm:px-8 py-3 rounded-full border border-credAccent text-credAccent font-semibold text-base sm:text-lg hover:bg-credGray hover:text-credWhite transition-colors">Log In</button>
         </div>
-        <div className="flex space-x-4 mb-8">
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mb-8 w-full sm:w-auto">
           <button onClick={() => navigate('/skills')} className="px-6 py-2 rounded-full bg-credGray text-credWhite font-semibold text-md hover:bg-credAccent hover:text-credBlack transition-colors">Skill Board</button>
           <button onClick={() => navigate('/post-skill')} className="px-6 py-2 rounded-full bg-credGray text-credWhite font-semibold text-md hover:bg-credAccent hover:text-credBlack transition-colors">Post a Skill</button>
         </div>
@@ -406,9 +406,9 @@ function MatchSuggestions() {
   );
 
   return (
-    <div className="min-h-screen bg-credBlack text-credWhite font-display py-8 px-4">
-      <div className="max-w-4xl mx-auto space-y-8">
-        <h1 className="text-3xl font-bold text-center mb-8">Skill Matches</h1>
+    <div className="min-h-screen bg-credBlack text-credWhite font-display py-4 sm:py-8 px-4">
+      <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8">Skill Matches</h1>
 
         {loading ? (
           <div className="text-center text-credWhite/60 py-12">
@@ -568,24 +568,24 @@ function SkillBoard() {
   );
 
   return (
-    <div className="min-h-screen bg-credBlack text-credWhite font-display flex flex-col items-center py-8">
+    <div className="min-h-screen bg-credBlack text-credWhite font-display flex flex-col items-center py-4 sm:py-8 px-4">
       <div className="w-full max-w-4xl">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div className="flex space-x-2">
-            <button onClick={() => setTab('offer')} className={`px-6 py-2 rounded-full font-semibold ${tab === 'offer' ? 'bg-credAccent text-credBlack' : 'bg-credGray text-credWhite'} transition-colors`}>Offering</button>
-            <button onClick={() => setTab('request')} className={`px-6 py-2 rounded-full font-semibold ${tab === 'request' ? 'bg-credAccent text-credBlack' : 'bg-credGray text-credWhite'} transition-colors`}>Requesting</button>
+            <button onClick={() => setTab('offer')} className={`px-4 sm:px-6 py-2 rounded-full font-semibold text-sm sm:text-base ${tab === 'offer' ? 'bg-credAccent text-credBlack' : 'bg-credGray text-credWhite'} transition-colors`}>Offering</button>
+            <button onClick={() => setTab('request')} className={`px-4 sm:px-6 py-2 rounded-full font-semibold text-sm sm:text-base ${tab === 'request' ? 'bg-credAccent text-credBlack' : 'bg-credGray text-credWhite'} transition-colors`}>Requesting</button>
           </div>
           <div className="flex space-x-2">
-            <Link to="/post-skill" className="px-6 py-2 rounded-full bg-credAccent text-credBlack font-semibold hover:scale-105 transition-transform">Post a Skill</Link>
-            <Link to="/matches" className="px-6 py-2 rounded-full bg-credGray text-credWhite font-semibold hover:bg-credAccent hover:text-credBlack transition-colors">Your Matches</Link>
+            <Link to="/post-skill" className="px-4 sm:px-6 py-2 rounded-full bg-credAccent text-credBlack font-semibold text-sm sm:text-base hover:scale-105 transition-transform">Post a Skill</Link>
+            <Link to="/matches" className="px-4 sm:px-6 py-2 rounded-full bg-credGray text-credWhite font-semibold text-sm sm:text-base hover:bg-credAccent hover:text-credBlack transition-colors">Your Matches</Link>
           </div>
         </div>
-        <div className="flex space-x-4 mb-6">
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search skill..." className="px-4 py-2 rounded-lg bg-credGray text-credWhite border border-credAccent focus:outline-none w-1/3" />
-          <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location" className="px-4 py-2 rounded-lg bg-credGray text-credWhite border border-credAccent focus:outline-none w-1/3" />
-          <input value={availability} onChange={e => setAvailability(e.target.value)} placeholder="Availability" className="px-4 py-2 rounded-lg bg-credGray text-credWhite border border-credAccent focus:outline-none w-1/3" />
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search skill..." className="px-4 py-2 rounded-lg bg-credGray text-credWhite border border-credAccent focus:outline-none w-full sm:w-1/3" />
+          <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location" className="px-4 py-2 rounded-lg bg-credGray text-credWhite border border-credAccent focus:outline-none w-full sm:w-1/3" />
+          <input value={availability} onChange={e => setAvailability(e.target.value)} placeholder="Availability" className="px-4 py-2 rounded-lg bg-credGray text-credWhite border border-credAccent focus:outline-none w-full sm:w-1/3" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {filtered.length === 0 && <div className="col-span-2 text-center text-credWhite/60">No skills found.</div>}
           {filtered.map(skill => (
             <div key={skill._id} className="bg-credGray rounded-xl p-6 shadow-lg flex flex-col space-y-2">
@@ -595,7 +595,7 @@ function SkillBoard() {
               </div>
               <h3 className="text-xl font-bold">{skill.skillName}</h3>
               <p className="text-credWhite/80">{skill.description}</p>
-              <div className="flex space-x-4 text-credWhite/70 text-sm">
+              <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 text-credWhite/70 text-sm">
                 <span>By: {skill.userId?.name || 'User'}</span>
                 <span>Location: {skill.location || 'N/A'}</span>
                 <span>Availability: {skill.availability || 'N/A'}</span>
@@ -783,8 +783,8 @@ function Chat() {
   if (!userId) return <div className="min-h-screen flex items-center justify-center bg-credBlack text-credWhite font-display">Please log in.</div>;
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-credBlack text-credWhite font-display py-4">
-      <div className="w-full max-w-xl bg-credGray rounded-2xl shadow-xl flex flex-col h-[80vh]">
+    <div className="min-h-screen flex flex-col items-center bg-credBlack text-credWhite font-display py-2 sm:py-4 px-2 sm:px-4">
+      <div className="w-full max-w-xl bg-credGray rounded-xl sm:rounded-2xl shadow-xl flex flex-col h-[85vh] sm:h-[80vh]">
         {/* Chat Header */}
         <div className="flex items-center justify-between p-4 border-b border-credBlack/30">
           <button onClick={() => navigate('/chats')} className="text-credAccent hover:text-credWhite transition-colors">
@@ -918,16 +918,16 @@ function ChatList() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-credBlack text-credWhite font-display">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-credBlack text-credWhite font-display flex flex-col items-center py-8">
-      <div className="w-full max-w-2xl bg-credGray rounded-2xl shadow-xl p-8">
-        <h2 className="text-3xl font-bold mb-6 text-center">Your Chats</h2>
+    <div className="min-h-screen bg-credBlack text-credWhite font-display flex flex-col items-center py-4 sm:py-8 px-4">
+      <div className="w-full max-w-2xl bg-credGray rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-8">
+        <h2 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 text-center">Your Chats</h2>
         {error && <div className="text-red-400 text-center text-sm mb-4">{error}</div>}
         {Array.isArray(conversations) && conversations.length === 0 ? (
           <div className="text-center text-credWhite/60">No conversations yet.</div>
         ) : (
           <ul className="space-y-4">
             {(Array.isArray(conversations) ? conversations : []).map(conv => (
-              <li key={conv.otherUserId} className="flex justify-between items-center bg-credBlack rounded-lg p-4">
+              <li key={conv.otherUserId} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 bg-credBlack rounded-lg p-4">
                 <div className="flex-1">
                   <div className="font-bold flex items-center">
                     {conv.otherUserName || 'User'}
@@ -1112,11 +1112,11 @@ function Profile() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-credBlack text-credWhite font-display">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-credBlack text-credWhite font-display flex flex-col items-center py-8">
-      <div className="w-full max-w-4xl space-y-6">
+    <div className="min-h-screen bg-credBlack text-credWhite font-display flex flex-col items-center py-4 sm:py-8 px-4">
+      <div className="w-full max-w-4xl space-y-4 sm:space-y-6">
         {/* Profile Information */}
-        <div className="bg-credGray rounded-2xl shadow-xl p-8">
-          <div className="flex justify-between items-center mb-4">
+        <div className="bg-credGray rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4">
             <h2 className="text-3xl font-bold">Your Profile</h2>
             {!isEditing && (
               <button
@@ -1210,8 +1210,8 @@ function Profile() {
         </div>
 
         {/* My Skills Section */}
-        <div className="bg-credGray rounded-2xl shadow-xl p-8">
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-credGray rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4 sm:mb-6">
             <h3 className="text-2xl font-bold">My Skills</h3>
             <Link to="/post-skill" className="px-4 py-2 rounded-full bg-credAccent text-credBlack font-semibold hover:scale-105 transition-transform">
               Post New Skill
@@ -1311,7 +1311,7 @@ function Profile() {
                       </div>
                       <h4 className="text-lg font-bold">{skill.skillName}</h4>
                       <p className="text-credWhite/80 text-sm">{skill.description}</p>
-                      <div className="flex space-x-4 text-credWhite/70 text-xs">
+                      <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 text-credWhite/70 text-xs">
                         <span>Location: {skill.location || 'N/A'}</span>
                         <span>Availability: {skill.availability || 'N/A'}</span>
                       </div>
@@ -1599,11 +1599,12 @@ function MainNav() {
   if (!userId) return null;
 
   return (
-    <nav className="w-full flex justify-center items-center space-x-6 py-4 bg-credGray text-credWhite font-display relative">
-      <button onClick={() => navigate('/skills')} className="hover:text-credAccent">Skill Board</button>
-      <button onClick={() => navigate('/post-skill')} className="hover:text-credAccent">Post Skill</button>
-      <button onClick={() => navigate('/matches')} className="hover:text-credAccent">Matches</button>
-      <button onClick={() => navigate('/chats')} className="hover:text-credAccent">Chats</button>
+    <nav className="w-full flex flex-wrap justify-center items-center gap-2 sm:gap-4 md:gap-6 py-3 sm:py-4 px-2 bg-credGray text-credWhite font-display relative">
+      <button onClick={() => navigate('/skills')} className="hover:text-credAccent text-sm sm:text-base">Skill Board</button>
+      <button onClick={() => navigate('/post-skill')} className="hover:text-credAccent text-sm sm:text-base">Post Skill</button>
+      <button onClick={() => navigate('/matches')} className="hover:text-credAccent text-sm sm:text-base">Matches</button>
+      <button onClick={() => navigate('/chats')} className="hover:text-credAccent text-sm sm:text-base">Chats</button>
+
 
       <div className="relative" ref={notifRef}>
         <button onClick={() => setShowNotifications(!showNotifications)} className="relative hover:text-credAccent">
@@ -1647,8 +1648,8 @@ function MainNav() {
         )}
       </div>
 
-      <button onClick={() => navigate('/profile')} className="hover:text-credAccent">Profile</button>
-      <button onClick={() => { localStorage.clear(); navigate('/login'); }} className="hover:text-credAccent">Logout</button>
+      <button onClick={() => navigate('/profile')} className="hover:text-credAccent text-sm sm:text-base">Profile</button>
+      <button onClick={() => { localStorage.clear(); navigate('/login'); }} className="hover:text-credAccent text-sm sm:text-base">Logout</button>
     </nav>
   );
 }
