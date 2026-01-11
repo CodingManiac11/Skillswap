@@ -23,9 +23,8 @@ https://skillswap-aadi-community.up.railway.app/
 - JWT (authentication)
 - bcrypt.js (password hashing)
 
-### Deployment
-- Frontend: [Vercel](https://vercel.com/)
-- Backend: [Render](https://render.com/)
+
+
 
 ---
 
