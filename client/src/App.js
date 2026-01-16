@@ -741,8 +741,8 @@ function SkillBoard() {
                   {/* Experience Level (for offers) */}
                   {skill.type === 'offer' && skill.experienceLevel && (
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${skill.experienceLevel === 'expert' ? 'bg-purple-500/20 text-purple-400' :
-                        skill.experienceLevel === 'intermediate' ? 'bg-yellow-500/20 text-yellow-400' :
-                          'bg-green-500/20 text-green-400'
+                      skill.experienceLevel === 'intermediate' ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-green-500/20 text-green-400'
                       }`}>
                       {skill.experienceLevel === 'expert' && '⭐ Expert'}
                       {skill.experienceLevel === 'intermediate' && '📈 Intermediate'}
@@ -1893,7 +1893,6 @@ function LeaveReview({ targetUserId, ratableMatches }) {
 
 // Admin Dashboard Component
 function AdminDashboard() {
-  const navigate = useNavigate();
   const userId = localStorage.getItem('userId');
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1913,6 +1912,7 @@ function AdminDashboard() {
         if (data.isAdmin) fetchStats();
       })
       .catch(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const fetchStats = async () => {
@@ -1988,6 +1988,7 @@ function AdminDashboard() {
   useEffect(() => {
     if (activeTab === 'users' && isAdmin) fetchUsers();
     if (activeTab === 'verify' && isAdmin) fetchPendingSkills();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isAdmin]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-credBlack text-credWhite">Loading...</div>;
