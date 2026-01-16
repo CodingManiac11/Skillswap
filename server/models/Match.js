@@ -6,7 +6,8 @@ const matchSchema = new mongoose.Schema({
   skillId: { type: mongoose.Schema.Types.ObjectId, ref: 'Skill', required: true },
   skillName: { type: String, required: true },
   // Track who initiated the match request - the OTHER party approves
-  initiatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  // Not required for backward compatibility with old matches
+  initiatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: {
     type: String,
     enum: ['pending', 'accepted', 'declined'],

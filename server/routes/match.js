@@ -323,19 +323,21 @@ router.post('/action', async (req, res) => {
       skillOwnerType: skill.type
     });
 
-    // Check if match already exists - search by user pair OR skillId
+    // Check if a PENDING match already exists - search by user pair AND skillName
+    // Only block if there's a pending request, not if it was already accepted/declined
     let match = await Match.findOne({
       $or: [
-        { skillId },
+        { skillId, status: 'pending' },
         {
           requesterId: requesterId,
           offererId: offererId,
-          skillName: { $regex: new RegExp(`^${skill.skillName}$`, 'i') }
+          skillName: { $regex: new RegExp(`^${skill.skillName}$`, 'i') },
+          status: 'pending'
         }
       ]
     });
 
-    console.log('Existing match:', match ? {
+    console.log('Existing pending match:', match ? {
       id: match._id,
       status: match.status,
       requester: match.requesterId.toString(),
@@ -346,7 +348,7 @@ router.post('/action', async (req, res) => {
     if (action === 'initiate') {
       // User wants to initiate a match
       if (match) {
-        return res.status(400).json({ message: 'Match request already exists for this skill.' });
+        return res.status(400).json({ message: 'A pending match request already exists for this skill. Please wait for the other party to respond.' });
       }
 
       // Determine who should approve: the opposite party from the initiator
