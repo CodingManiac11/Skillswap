@@ -249,15 +249,23 @@ function MatchSuggestions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  const handleMatchAction = async (skillId, action) => {
-    console.log('Match action:', { skillId, action, userId });
-    setActionLoading(prev => ({ ...prev, [skillId]: true }));
+  const handleMatchAction = async (idOrMatchId, action) => {
+    console.log('Match action:', { idOrMatchId, action, userId });
+    setActionLoading(prev => ({ ...prev, [idOrMatchId]: true }));
 
     try {
+      // For accept/decline, idOrMatchId is the matchId; for initiate, it's skillId
+      const requestBody = { userId, action };
+      if (action === 'accept' || action === 'decline') {
+        requestBody.matchId = idOrMatchId;
+      } else {
+        requestBody.skillId = idOrMatchId;
+      }
+
       const res = await fetch('/users/matches/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, skillId, action }),
+        body: JSON.stringify(requestBody),
       });
 
       const result = await res.json();
@@ -274,7 +282,7 @@ function MatchSuggestions() {
       alert('Failed to process action');
     }
 
-    setActionLoading(prev => ({ ...prev, [skillId]: false }));
+    setActionLoading(prev => ({ ...prev, [idOrMatchId]: false }));
   };
 
   const getMatchStatusBadge = (status) => {
@@ -369,14 +377,14 @@ function MatchSuggestions() {
           {skill.actionRequired === 'approve' && skill.canTakeAction && (
             <>
               <button
-                onClick={() => handleMatchAction(skill._id, 'accept')}
+                onClick={() => handleMatchAction(skill.matchId || skill._id, 'accept')}
                 disabled={actionLoading[skill._id]}
                 className="px-4 py-2 rounded-full bg-green-600 text-white font-semibold hover:scale-105 transition-transform disabled:opacity-50"
               >
                 {actionLoading[skill._id] ? '...' : '✓ Accept'}
               </button>
               <button
-                onClick={() => handleMatchAction(skill._id, 'decline')}
+                onClick={() => handleMatchAction(skill.matchId || skill._id, 'decline')}
                 disabled={actionLoading[skill._id]}
                 className="px-4 py-2 rounded-full bg-red-600 text-white font-semibold hover:scale-105 transition-transform disabled:opacity-50"
               >

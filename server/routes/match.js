@@ -180,18 +180,105 @@ router.get('/:userId', async (req, res) => {
 // Create or update a match (initiate/accept/decline)
 router.post('/action', async (req, res) => {
   try {
-    const { userId, skillId, action, userSkillId } = req.body;
+    const { userId, skillId, action, userSkillId, matchId } = req.body;
     const io = req.app.get('io');
 
     console.log('\n=== MATCH ACTION ===');
-    console.log('User:', userId, 'Action:', action, 'Skill:', skillId);
+    console.log('User:', userId, 'Action:', action, 'Skill:', skillId, 'MatchId:', matchId);
 
-    if (!userId || !skillId || !action) {
+    if (!userId || !action) {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
 
     if (!['initiate', 'accept', 'decline'].includes(action)) {
       return res.status(400).json({ message: 'Invalid action. Use initiate, accept, or decline.' });
+    }
+
+    // For accept/decline, try to use matchId first if provided
+    if ((action === 'accept' || action === 'decline') && matchId) {
+      console.log('Using matchId for accept/decline:', matchId);
+      const match = await Match.findById(matchId);
+
+      if (!match) {
+        return res.status(404).json({ message: 'No match request found.' });
+      }
+
+      if (match.status !== 'pending') {
+        return res.status(400).json({ message: 'This match has already been processed.' });
+      }
+
+      // Handle backward compatibility for old matches without initiatorId
+      const initiatorId = match.initiatorId ? match.initiatorId.toString() : null;
+
+      if (initiatorId) {
+        if (initiatorId === userId) {
+          return res.status(403).json({ message: 'You cannot approve/decline your own request. The other party must respond.' });
+        }
+      } else {
+        if (match.offererId.toString() !== userId) {
+          return res.status(403).json({ message: 'Only the skill provider can accept or decline match requests.' });
+        }
+      }
+
+      // Verify user is involved in this match
+      const isInvolved = match.requesterId.toString() === userId || match.offererId.toString() === userId;
+      if (!isInvolved) {
+        return res.status(403).json({ message: 'You are not involved in this match.' });
+      }
+
+      // Get current user for notification
+      const currentUser = await User.findById(userId);
+      if (!currentUser) return res.status(404).json({ message: 'User not found.' });
+
+      // Update match status
+      const newStatus = action === 'accept' ? 'accepted' : 'declined';
+      match.status = newStatus;
+      match.updatedAt = new Date();
+      await match.save();
+
+      console.log('Updated match status to:', newStatus);
+
+      if (action === 'accept') {
+        // Create system message to start the conversation
+        const Message = require('../models/Message');
+        const systemMessage = new Message({
+          senderId: match.offererId,
+          receiverId: match.requesterId,
+          message: `🎉 Great! Your match for "${match.skillName}" has been accepted! Start chatting to coordinate your skill exchange!`,
+          isSystemMessage: true
+        });
+        await systemMessage.save();
+
+        // Notify the requester that their request was accepted
+        await createNotification({
+          userId: match.requesterId,
+          type: 'match_accepted',
+          title: 'Match Accepted! 🎉',
+          message: `${currentUser.name} accepted your request for ${match.skillName}! You can now chat.`,
+          relatedUserId: userId,
+          relatedMatchId: match._id
+        }, io);
+      } else {
+        // Notify the initiator that their request was declined
+        await createNotification({
+          userId: match.initiatorId || match.requesterId,
+          type: 'match_declined',
+          title: 'Match Declined',
+          message: `${currentUser.name} declined your request for ${match.skillName}.`,
+          relatedUserId: userId,
+          relatedMatchId: match._id
+        }, io);
+      }
+
+      return res.json({
+        message: action === 'accept' ? 'Match accepted! You can now chat.' : 'Match request declined.',
+        match
+      });
+    }
+
+    // For initiate action, need skillId
+    if (action === 'initiate' && !skillId) {
+      return res.status(400).json({ message: 'Skill ID is required to initiate a match.' });
     }
 
     // Get the skill being matched
