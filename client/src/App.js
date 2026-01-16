@@ -52,7 +52,7 @@ function SignUp() {
     }
 
     try {
-      const res = await fetch('/auth/register', {
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -107,7 +107,7 @@ function Login() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/auth/login', {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -165,7 +165,7 @@ function SkillPostForm() {
     setError('');
     setSuccess('');
     try {
-      const res = await fetch('/skills', {
+      const res = await fetch('/api/skills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, userId }),
@@ -231,7 +231,7 @@ function MatchSuggestions() {
   const fetchMatches = async () => {
     try {
       const timestamp = new Date().getTime();
-      const res = await fetch(`/users/matches/${userId}?t=${timestamp}`);
+      const res = await fetch(`/api/users/matches/${userId}?t=${timestamp}`);
       const data = await res.json();
       console.log('Fetched matches:', data);
       setMatches(Array.isArray(data) ? data : []);
@@ -262,7 +262,7 @@ function MatchSuggestions() {
         requestBody.skillId = idOrMatchId;
       }
 
-      const res = await fetch('/users/matches/action', {
+      const res = await fetch('/api/users/matches/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
@@ -524,7 +524,7 @@ function SkillBoard() {
 
   const fetchSkills = async () => {
     try {
-      const res = await fetch('/skills');
+      const res = await fetch('/api/skills');
       const data = await res.json();
       setSkills(data);
     } catch (err) {
@@ -551,7 +551,7 @@ function SkillBoard() {
     try {
       console.log('Deleting skill:', { skillId, userId: currentUserId });
 
-      const res = await fetch(`/skills/${skillId}`, {
+      const res = await fetch(`/api/skills/${skillId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUserId }),
@@ -679,7 +679,7 @@ function Chat() {
   // Check if Google is connected
   useEffect(() => {
     if (!userId) return;
-    fetch(`${API_URL}/google/status/${userId}`)
+    fetch(`${API_URL}/api/google/status/${userId}`)
       .then(res => res.json())
       .then(data => setGoogleConnected(data.connected))
       .catch(() => setGoogleConnected(false));
@@ -689,13 +689,13 @@ function Chat() {
   const createMeeting = async () => {
     if (!googleConnected) {
       // Redirect to Google OAuth on backend
-      window.location.href = `${API_URL}/google/auth/${userId}`;
+      window.location.href = `${API_URL}/api/google/auth/${userId}`;
       return;
     }
 
     setCreatingMeeting(true);
     try {
-      const res = await fetch(`${API_URL}/google/create-meeting`, {
+      const res = await fetch(`${API_URL}/api/google/create-meeting`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -803,11 +803,11 @@ function Chat() {
     });
 
     // Mark messages from other user as read when opening chat
-    fetch(`/messages/mark-read/${userId}/${otherUserId}`, { method: 'POST' })
+    fetch(`/api/messages/mark-read/${userId}/${otherUserId}`, { method: 'POST' })
       .catch(err => console.log('Could not mark messages as read:', err));
 
     // Fetch existing messages
-    fetch(`/messages/${userId}/${otherUserId}`)
+    fetch(`/api/messages/${userId}/${otherUserId}`)
       .then(res => res.json())
       .then(data => {
         setMessages(Array.isArray(data) ? data : []);
@@ -846,7 +846,7 @@ function Chat() {
     } else {
       // Fallback to HTTP if socket is disconnected
       try {
-        const res = await fetch('/messages/send', {
+        const res = await fetch('/api/messages/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(msgData),
@@ -1028,7 +1028,7 @@ function ChatList() {
 
     console.log('Fetching conversations for user:', userId); // Debug log
 
-    fetch(`/messages/${userId}/all`)
+    fetch(`/api/messages/${userId}/all`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
@@ -1117,8 +1117,8 @@ function Profile() {
     if (!userId) return;
     try {
       const [profileRes, skillsRes] = await Promise.all([
-        fetch(`/profile/${userId}`),
-        fetch(`/skills/user/${userId}`)
+        fetch(`/api/profile/${userId}`),
+        fetch(`/api/skills/user/${userId}`)
       ]);
 
       const profileData = await profileRes.json();
@@ -1151,7 +1151,7 @@ function Profile() {
   const handleSaveProfile = async () => {
     setSaveLoading(true);
     try {
-      const res = await fetch(`/profile/${userId}`, {
+      const res = await fetch(`/api/profile/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm)
@@ -1189,7 +1189,7 @@ function Profile() {
   const handleSaveSkill = async () => {
     setSkillSaveLoading(true);
     try {
-      const res = await fetch(`/skills/${editingSkillId}`, {
+      const res = await fetch(`/api/skills/${editingSkillId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, ...skillEditForm })
@@ -1223,7 +1223,7 @@ function Profile() {
     try {
       console.log('Deleting skill from profile:', { skillId, userId });
 
-      const res = await fetch(`/skills/${skillId}`, {
+      const res = await fetch(`/api/skills/${skillId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
@@ -1496,7 +1496,7 @@ function ReviewSection({ userId }) {
         const headers = { 'Authorization': `Bearer ${token}` };
 
         // Fetch reviews for this user
-        const reviewsRes = await fetch(`/reviews/${userId}`, { headers });
+        const reviewsRes = await fetch(`/api/reviews/${userId}`, { headers });
         if (reviewsRes.ok) {
           const data = await reviewsRes.json();
           setReviewData(data);
@@ -1504,7 +1504,7 @@ function ReviewSection({ userId }) {
 
         // If viewing own profile, fetch ratable matches
         if (currentUserId) {
-          const matchesRes = await fetch(`/reviews/ratable-matches/${currentUserId}`, { headers });
+          const matchesRes = await fetch(`/api/reviews/ratable-matches/${currentUserId}`, { headers });
           if (matchesRes.ok) {
             const matches = await matchesRes.json();
             // Filter to only matches where the offerer is the profile being viewed
@@ -1568,7 +1568,7 @@ function LeaveReview({ targetUserId, ratableMatches }) {
     }
     setSuccess(''); setError(''); setSubmitting(true);
     try {
-      const res = await fetch(`/reviews/${targetUserId}`, {
+      const res = await fetch(`/api/reviews/${targetUserId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1672,7 +1672,7 @@ function MainNav() {
 
     const fetchNotifications = async () => {
       try {
-        const res = await fetch(`/notifications/${userId}`, {
+        const res = await fetch(`/api/notifications/${userId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) {
@@ -1715,7 +1715,7 @@ function MainNav() {
 
   const markAllRead = async () => {
     try {
-      await fetch(`/notifications/mark-all-read/${userId}`, {
+      await fetch(`/api/notifications/mark-all-read/${userId}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });

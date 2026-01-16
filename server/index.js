@@ -151,27 +151,27 @@ io.on('connection', (socket) => {
 app.set('io', io);
 
 const authRoutes = require('./routes/auth');
-app.use('/auth', authRoutes);
+app.use('/api/auth', authRoutes);
 
 const skillsRoutes = require('./routes/skills');
-app.use('/skills', skillsRoutes);
+app.use('/api/skills', skillsRoutes);
 
 const matchRoutes = require('./routes/match');
-app.use('/users/matches', matchRoutes);
+app.use('/api/users/matches', matchRoutes);
 
 const messagesRoutes = require('./routes/messages');
-app.use('/messages', messagesRoutes);
+app.use('/api/messages', messagesRoutes);
 
 const reviewsRoutes = require('./routes/reviews');
-app.use('/reviews', reviewsRoutes);
+app.use('/api/reviews', reviewsRoutes);
 const profileRoutes = require('./routes/profile');
-app.use('/profile', profileRoutes);
+app.use('/api/profile', profileRoutes);
 
 const notificationsRoutes = require('./routes/notifications');
-app.use('/notifications', notificationsRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 const googleRoutes = require('./routes/google');
-app.use('/google', googleRoutes);
+app.use('/api/google', googleRoutes);
 
 // Debug routes to check database contents
 const User = require('./models/User');
