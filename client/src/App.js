@@ -44,8 +44,10 @@ function SignUp() {
     setLoading(true);
     setError('');
 
-    // Validate Gmail only
-    if (!form.email.toLowerCase().endsWith('@gmail.com')) {
+    // Validate Gmail only (allow admin@skillswap.com exception)
+    const email = form.email.toLowerCase();
+    const isAllowedEmail = email.endsWith('@gmail.com') || email === 'admin@skillswap.com';
+    if (!isAllowedEmail) {
       setError('Only Gmail addresses are allowed. Please use a @gmail.com email.');
       setLoading(false);
       return;
@@ -2147,7 +2149,17 @@ function MainNav() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const notifRef = useRef(null);
+
+  // Check admin status
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`/api/admin/check?userId=${userId}`)
+      .then(res => res.json())
+      .then(data => setIsAdmin(data.isAdmin))
+      .catch(() => setIsAdmin(false));
+  }, [userId]);
 
   useEffect(() => {
     if (!userId || !token) return;
@@ -2227,6 +2239,12 @@ function MainNav() {
       <button onClick={() => navigate('/matches')} className="hover:text-credAccent text-sm sm:text-base">Matches</button>
       <button onClick={() => navigate('/chats')} className="hover:text-credAccent text-sm sm:text-base">Chats</button>
 
+      {/* Admin Link - Only visible for admins */}
+      {isAdmin && (
+        <button onClick={() => navigate('/admin')} className="hover:text-credAccent text-sm sm:text-base text-yellow-400 font-semibold">
+          👑 Admin
+        </button>
+      )}
 
       <div className="relative" ref={notifRef}>
         <button onClick={() => setShowNotifications(!showNotifications)} className="relative hover:text-credAccent">
