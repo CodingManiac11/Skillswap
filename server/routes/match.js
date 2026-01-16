@@ -510,4 +510,81 @@ router.get('/:userId/all', async (req, res) => {
   }
 });
 
+// Mark a match session as complete
+router.post('/complete', async (req, res) => {
+  try {
+    const { userId, matchId } = req.body;
+    const io = req.app.get('io');
+
+    if (!userId || !matchId) {
+      return res.status(400).json({ message: 'Missing required fields.' });
+    }
+
+    const match = await Match.findById(matchId);
+    if (!match) {
+      return res.status(404).json({ message: 'Match not found.' });
+    }
+
+    // Verify user is involved in this match
+    const isInvolved = match.requesterId.toString() === userId || match.offererId.toString() === userId;
+    if (!isInvolved) {
+      return res.status(403).json({ message: 'You are not involved in this match.' });
+    }
+
+    // Check if match is accepted (can only complete accepted matches)
+    if (match.status !== 'accepted' && match.status !== 'completed') {
+      return res.status(400).json({ message: 'Only accepted matches can be marked as complete.' });
+    }
+
+    // If already completed, just return success
+    if (match.status === 'completed') {
+      return res.json({ message: 'Session already marked as complete.', match });
+    }
+
+    // Mark as complete
+    match.status = 'completed';
+    match.completedBy = userId;
+    match.completedAt = new Date();
+    match.updatedAt = new Date();
+    await match.save();
+
+    // Get user names for notification
+    const currentUser = await User.findById(userId);
+    const otherUserId = match.requesterId.toString() === userId ? match.offererId : match.requesterId;
+
+    // Create notification for the other user
+    const Notification = require('../models/Notification');
+    const notification = new Notification({
+      userId: otherUserId,
+      type: 'session_complete',
+      title: 'Session Completed! ⭐',
+      message: `${currentUser.name} marked your "${match.skillName}" session as complete. Please leave a review!`,
+      relatedUserId: userId,
+      relatedMatchId: match._id
+    });
+    await notification.save();
+
+    // Emit real-time notification
+    if (io) {
+      io.to(otherUserId.toString()).emit('notification', notification);
+    }
+
+    // Create system message in chat
+    const Message = require('../models/Message');
+    const systemMessage = new Message({
+      senderId: userId,
+      receiverId: otherUserId,
+      message: `✅ ${currentUser.name} marked this session as complete! Please leave a review to help others. 🌟`,
+      isSystemMessage: true
+    });
+    await systemMessage.save();
+
+    console.log(`Session ${matchId} marked complete by ${userId}`);
+    res.json({ message: 'Session marked as complete! A review request has been sent.', match });
+  } catch (err) {
+    console.error('Error completing session:', err);
+    res.status(500).json({ message: 'Server error.', error: err.message });
+  }
+});
+
 module.exports = router;

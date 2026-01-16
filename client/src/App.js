@@ -673,6 +673,11 @@ function Chat() {
   const [googleConnected, setGoogleConnected] = useState(false);
   const [creatingMeeting, setCreatingMeeting] = useState(false);
 
+  // Session completion state
+  const [sessionCompleted, setSessionCompleted] = useState(false);
+  const [matchInfo, setMatchInfo] = useState(null);
+  const [markingComplete, setMarkingComplete] = useState(false);
+
   // Backend URL for API calls (same as socket)
   const API_URL = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000';
 
@@ -727,6 +732,57 @@ function Chat() {
       setError('Failed to create meeting');
     }
     setCreatingMeeting(false);
+  };
+
+  // Fetch match info to check completion status
+  useEffect(() => {
+    if (!userId || !otherUserId) return;
+
+    fetch(`/api/users/matches/${userId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          // Find the match with otherUserId
+          const match = data.find(m =>
+            (m.requesterId?._id === otherUserId || m.offererId?._id === otherUserId) &&
+            (m.status === 'accepted' || m.status === 'completed')
+          );
+          if (match) {
+            setMatchInfo(match);
+            setSessionCompleted(match.status === 'completed');
+          }
+        }
+      })
+      .catch(err => console.log('Could not fetch match info:', err));
+  }, [userId, otherUserId]);
+
+  // Mark session as complete
+  const markComplete = async () => {
+    if (!matchInfo?._id) {
+      alert('No match found for this chat.');
+      return;
+    }
+
+    setMarkingComplete(true);
+    try {
+      const res = await fetch('/api/users/matches/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, matchId: matchInfo._id })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setSessionCompleted(true);
+        alert('✅ Session marked as complete! A review request has been sent.');
+      } else {
+        alert(data.message || 'Failed to mark complete');
+      }
+    } catch (err) {
+      console.error('Error marking complete:', err);
+      alert('Failed to mark session as complete.');
+    }
+    setMarkingComplete(false);
   };
 
   // Auto-scroll to bottom when new messages arrive
@@ -887,31 +943,65 @@ function Chat() {
     <div className="min-h-screen flex flex-col items-center bg-credBlack text-credWhite font-display py-2 sm:py-4 px-2 sm:px-4">
       <div className="w-full max-w-xl bg-credGray rounded-xl sm:rounded-2xl shadow-xl flex flex-col h-[85vh] sm:h-[80vh]">
         {/* Chat Header */}
-        <div className="flex items-center justify-between p-4 border-b border-credBlack/30">
-          <button onClick={() => navigate('/chats')} className="text-credAccent hover:text-credWhite transition-colors">
-            ← Back
-          </button>
-          <div className="text-center">
-            <h2 className="text-xl font-bold">{otherUserName || 'User'}</h2>
-            <div className="text-xs text-credWhite/60">
-              {!connected ? (
-                <span className="text-yellow-400">Connecting...</span>
-              ) : otherUserOnline ? (
-                <span className="text-green-400">● Online</span>
-              ) : (
-                <span className="text-credWhite/40">○ Offline</span>
-              )}
+        <div className="flex flex-col border-b border-credBlack/30">
+          <div className="flex items-center justify-between p-4">
+            <button onClick={() => navigate('/chats')} className="text-credAccent hover:text-credWhite transition-colors">
+              ← Back
+            </button>
+            <div className="text-center">
+              <h2 className="text-xl font-bold">{otherUserName || 'User'}</h2>
+              <div className="text-xs text-credWhite/60">
+                {!connected ? (
+                  <span className="text-yellow-400">Connecting...</span>
+                ) : otherUserOnline ? (
+                  <span className="text-green-400">● Online</span>
+                ) : (
+                  <span className="text-credWhite/40">○ Offline</span>
+                )}
+              </div>
             </div>
+            <div className="w-16"></div>
           </div>
-          <button
-            onClick={createMeeting}
-            disabled={creatingMeeting}
-            className="px-3 py-1.5 rounded-full bg-blue-600 text-white text-sm font-semibold hover:scale-105 transition-transform disabled:opacity-50 flex items-center gap-1"
-            title={googleConnected ? 'Create Google Meet' : 'Connect Google to create meetings'}
-          >
-            {creatingMeeting ? '...' : '📹'}
-            <span className="hidden sm:inline">{googleConnected ? 'Meet' : 'Connect'}</span>
-          </button>
+
+          {/* Action Buttons Row */}
+          <div className="flex items-center justify-center gap-2 pb-3 px-4">
+            {/* Meet Button */}
+            <button
+              onClick={createMeeting}
+              disabled={creatingMeeting}
+              className="px-3 py-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold hover:scale-105 transition-transform disabled:opacity-50 flex items-center gap-1"
+              title={googleConnected ? 'Create Google Meet' : 'Connect Google to create meetings'}
+            >
+              {creatingMeeting ? '...' : '📹'} Meet
+            </button>
+
+            {/* Mark Complete Button */}
+            {matchInfo && !sessionCompleted && (
+              <button
+                onClick={markComplete}
+                disabled={markingComplete}
+                className="px-3 py-1.5 rounded-full bg-green-600 text-white text-xs font-semibold hover:scale-105 transition-transform disabled:opacity-50 flex items-center gap-1"
+                title="Mark this skill exchange session as complete"
+              >
+                {markingComplete ? '...' : '✅'} Complete
+              </button>
+            )}
+
+            {/* Session Completed Badge + Leave Review */}
+            {sessionCompleted && (
+              <>
+                <span className="px-3 py-1.5 rounded-full bg-green-500/20 text-green-400 text-xs font-semibold border border-green-500/30">
+                  ✅ Completed
+                </span>
+                <button
+                  onClick={() => navigate('/profile')}
+                  className="px-3 py-1.5 rounded-full bg-yellow-500 text-black text-xs font-semibold hover:scale-105 transition-transform flex items-center gap-1"
+                >
+                  ⭐ Review
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Messages Container */}
@@ -1011,7 +1101,7 @@ function Chat() {
           </button>
         </form>
       </div>
-    </div>
+    </div >
   );
 }
 

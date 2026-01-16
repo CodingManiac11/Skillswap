@@ -10,10 +10,16 @@ const matchSchema = new mongoose.Schema({
   initiatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: {
     type: String,
-    enum: ['pending', 'accepted', 'declined'],
+    enum: ['pending', 'accepted', 'declined', 'completed'],
     default: 'pending'
   },
-  // Track if this match has been rated by the requester
+  // Track session completion
+  completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  completedAt: { type: Date },
+  // Track ratings - who has rated
+  ratedByRequester: { type: Boolean, default: false },
+  ratedByOfferer: { type: Boolean, default: false },
+  // Legacy field - keeping for backward compatibility
   hasBeenRated: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
