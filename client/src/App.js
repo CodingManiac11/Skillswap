@@ -1742,6 +1742,248 @@ function LeaveReview({ targetUserId, ratableMatches }) {
   );
 }
 
+// Admin Dashboard Component
+function AdminDashboard() {
+  const navigate = useNavigate();
+  const userId = localStorage.getItem('userId');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('stats');
+  const [stats, setStats] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [pendingSkills, setPendingSkills] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Check if user is admin
+  useEffect(() => {
+    fetch(`/api/admin/check?userId=${userId}`)
+      .then(res => res.json())
+      .then(data => {
+        setIsAdmin(data.isAdmin);
+        setLoading(false);
+        if (data.isAdmin) fetchStats();
+      })
+      .catch(() => setLoading(false));
+  }, [userId]);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch('/api/admin/stats', {
+        headers: { 'x-user-id': userId }
+      });
+      const data = await res.json();
+      setStats(data);
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch(`/api/admin/users?search=${searchTerm}`, {
+        headers: { 'x-user-id': userId }
+      });
+      const data = await res.json();
+      setUsers(data.users || []);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    }
+  };
+
+  const fetchPendingSkills = async () => {
+    try {
+      const res = await fetch('/api/admin/skills/pending', {
+        headers: { 'x-user-id': userId }
+      });
+      const data = await res.json();
+      setPendingSkills(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching pending skills:', err);
+    }
+  };
+
+  const handleUserAction = async (targetUserId, action, value) => {
+    try {
+      const body = {};
+      if (action === 'ban') body.isBanned = value;
+      if (action === 'verify') body.isVerified = value;
+      if (action === 'admin') body.isAdmin = value;
+
+      await fetch(`/api/admin/users/${targetUserId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+        body: JSON.stringify(body)
+      });
+      fetchUsers();
+      fetchStats();
+    } catch (err) {
+      alert('Error updating user');
+    }
+  };
+
+  const handleVerifySkill = async (skillId, status) => {
+    try {
+      await fetch(`/api/admin/skills/${skillId}/verify`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+        body: JSON.stringify({ status })
+      });
+      fetchPendingSkills();
+      fetchStats();
+      alert(`Skill ${status}!`);
+    } catch (err) {
+      alert('Error verifying skill');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'users' && isAdmin) fetchUsers();
+    if (activeTab === 'verify' && isAdmin) fetchPendingSkills();
+  }, [activeTab, isAdmin]);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-credBlack text-credWhite">Loading...</div>;
+  if (!isAdmin) return <div className="min-h-screen flex items-center justify-center bg-credBlack text-credWhite">Access Denied. Admin only.</div>;
+
+  return (
+    <div className="min-h-screen bg-credBlack text-credWhite font-display py-6 px-4">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6 text-credAccent">👑 Admin Dashboard</h1>
+
+        {/* Tab Navigation */}
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {['stats', 'users', 'verify'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${activeTab === tab ? 'bg-credAccent text-credBlack' : 'bg-credGray text-credWhite hover:bg-credGray/80'
+                }`}
+            >
+              {tab === 'stats' && '📊 Stats'}
+              {tab === 'users' && '👥 Users'}
+              {tab === 'verify' && `✅ Verify (${pendingSkills.length})`}
+            </button>
+          ))}
+        </div>
+
+        {/* Stats Tab */}
+        {activeTab === 'stats' && stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Total Users', value: stats.totalUsers, icon: '👥' },
+              { label: 'Total Skills', value: stats.totalSkills, icon: '🎯' },
+              { label: 'Total Matches', value: stats.totalMatches, icon: '🤝' },
+              { label: 'Completed', value: stats.completedMatches, icon: '✅' },
+              { label: 'Pending Verify', value: stats.pendingVerifications, icon: '⏳', highlight: true },
+              { label: 'Verified Skills', value: stats.verifiedSkills, icon: '🏅' },
+              { label: 'Banned Users', value: stats.bannedUsers, icon: '🚫' },
+              { label: 'Active Matches', value: stats.acceptedMatches, icon: '💬' },
+            ].map((stat, i) => (
+              <div key={i} className={`p-4 rounded-xl ${stat.highlight ? 'bg-yellow-500/20 border border-yellow-500/50' : 'bg-credGray'}`}>
+                <div className="text-2xl mb-1">{stat.icon}</div>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <div className="text-sm text-credWhite/60">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Users Tab */}
+        {activeTab === 'users' && (
+          <div>
+            <div className="mb-4 flex gap-2">
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="flex-1 px-4 py-2 rounded-lg bg-credGray text-credWhite border border-credBlack/30"
+              />
+              <button onClick={fetchUsers} className="px-4 py-2 bg-credAccent text-credBlack rounded-lg font-semibold">
+                🔍 Search
+              </button>
+            </div>
+            <div className="space-y-2">
+              {users.map(user => (
+                <div key={user._id} className="p-4 bg-credGray rounded-xl flex flex-wrap items-center gap-4">
+                  <div className="flex-1 min-w-[200px]">
+                    <div className="font-bold flex items-center gap-2">
+                      {user.name}
+                      {user.isAdmin && <span className="text-yellow-400 text-xs">👑 Admin</span>}
+                      {user.isVerified && <span className="text-green-400 text-xs">✅</span>}
+                      {user.isBanned && <span className="text-red-400 text-xs">🚫 Banned</span>}
+                    </div>
+                    <div className="text-sm text-credWhite/60">{user.email}</div>
+                    <div className="text-xs text-credWhite/40">⭐ {user.averageRating?.toFixed(1) || '0'} ({user.ratingCount || 0} reviews)</div>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => handleUserAction(user._id, 'verify', !user.isVerified)}
+                      className={`px-3 py-1 rounded text-xs font-semibold ${user.isVerified ? 'bg-green-600' : 'bg-gray-600'}`}
+                    >
+                      {user.isVerified ? '✅ Verified' : 'Verify'}
+                    </button>
+                    <button
+                      onClick={() => handleUserAction(user._id, 'ban', !user.isBanned)}
+                      className={`px-3 py-1 rounded text-xs font-semibold ${user.isBanned ? 'bg-red-600' : 'bg-gray-600'}`}
+                    >
+                      {user.isBanned ? '🚫 Banned' : 'Ban'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {users.length === 0 && <div className="text-center text-credWhite/60 py-8">No users found</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Verify Skills Tab */}
+        {activeTab === 'verify' && (
+          <div className="space-y-4">
+            {pendingSkills.length === 0 ? (
+              <div className="text-center py-12 text-credWhite/60">
+                <div className="text-4xl mb-2">✅</div>
+                <p>No skills pending verification</p>
+              </div>
+            ) : (
+              pendingSkills.map(skill => (
+                <div key={skill._id} className="p-4 bg-credGray rounded-xl">
+                  <div className="flex flex-wrap justify-between items-start gap-4">
+                    <div>
+                      <div className="font-bold text-lg">{skill.skillName}</div>
+                      <div className="text-sm text-credWhite/60">By: {skill.userId?.name} ({skill.userId?.email})</div>
+                      <div className="text-sm mt-2">{skill.description}</div>
+                      {skill.proofUrl && (
+                        <a href={skill.proofUrl} target="_blank" rel="noopener noreferrer"
+                          className="inline-block mt-2 text-blue-400 hover:underline text-sm">
+                          🔗 View Proof
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleVerifySkill(skill._id, 'verified')}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                      >
+                        ✅ Approve
+                      </button>
+                      <button
+                        onClick={() => handleVerifySkill(skill._id, 'rejected')}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700"
+                      >
+                        ❌ Reject
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }) {
   const userId = localStorage.getItem('userId');
   if (!userId) return <div className="min-h-screen flex items-center justify-center bg-credBlack text-credWhite font-display">Please log in to access this page.</div>;
@@ -1898,6 +2140,7 @@ function App() {
         <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
         <Route path="/chats" element={<ProtectedRoute><ChatList /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
       </Routes>
     </>
   );

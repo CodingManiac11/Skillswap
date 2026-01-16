@@ -27,7 +27,18 @@ const userSchema = new mongoose.Schema({
     access_token: String,
     refresh_token: String,
     expiry_date: Number
-  }
+  },
+  // Admin & Verification
+  isAdmin: { type: Boolean, default: false },
+  isVerified: { type: Boolean, default: false },
+  verifiedAt: { type: Date },
+  // Account status
+  isBanned: { type: Boolean, default: false },
+  bannedAt: { type: Date },
+  bannedReason: { type: String },
+  // Timestamps
+  createdAt: { type: Date, default: Date.now },
+  lastLoginAt: { type: Date }
 });
 
 module.exports = mongoose.model('User', userSchema); 

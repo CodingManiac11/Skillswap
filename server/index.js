@@ -173,6 +173,9 @@ app.use('/api/notifications', notificationsRoutes);
 const googleRoutes = require('./routes/google');
 app.use('/api/google', googleRoutes);
 
+const adminRoutes = require('./routes/admin');
+app.use('/api/admin', adminRoutes);
+
 // Debug routes to check database contents
 const User = require('./models/User');
 const Skill = require('./models/Skill');
