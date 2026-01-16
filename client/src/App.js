@@ -149,7 +149,16 @@ function Login() {
 }
 
 function SkillPostForm() {
-  const [form, setForm] = useState({ type: 'offer', skillName: '', description: '', availability: '', location: '' });
+  const [form, setForm] = useState({
+    type: 'offer',
+    skillName: '',
+    description: '',
+    availability: '',
+    location: '',
+    proofUrl: '',
+    category: 'other',
+    experienceLevel: 'intermediate'
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -165,14 +174,20 @@ function SkillPostForm() {
     setError('');
     setSuccess('');
     try {
+      // If proofUrl is provided, set verificationStatus to pending
+      const submitData = { ...form, userId };
+      if (form.proofUrl && form.proofUrl.trim()) {
+        submitData.verificationStatus = 'pending';
+      }
+
       const res = await fetch('/api/skills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, userId }),
+        body: JSON.stringify(submitData),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to post skill');
-      setSuccess('Skill posted successfully!');
+      setSuccess('Skill posted successfully!' + (form.proofUrl ? ' Verification pending.' : ''));
       setTimeout(() => navigate('/skills'), 1000);
     } catch (err) {
       setError(err.message);
@@ -180,41 +195,126 @@ function SkillPostForm() {
     setLoading(false);
   };
 
+  const categories = [
+    { value: 'technology', label: '💻 Technology' },
+    { value: 'music', label: '🎵 Music' },
+    { value: 'languages', label: '🌍 Languages' },
+    { value: 'arts', label: '🎨 Arts & Design' },
+    { value: 'sports', label: '⚽ Sports & Fitness' },
+    { value: 'academics', label: '📚 Academics' },
+    { value: 'business', label: '💼 Business' },
+    { value: 'lifestyle', label: '🌱 Lifestyle' },
+    { value: 'other', label: '📦 Other' },
+  ];
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-credBlack text-credWhite font-display">
-      <div className="bg-credGray p-8 rounded-2xl shadow-xl w-full max-w-lg">
-        <h2 className="text-3xl font-bold mb-6 text-center">Post a Skill</h2>
-        <form onSubmit={handleSubmit} className="space-y-5">
+    <div className="min-h-screen flex items-center justify-center bg-credBlack text-credWhite font-display py-6 px-4">
+      <div className="bg-credGray p-6 sm:p-8 rounded-2xl shadow-xl w-full max-w-lg">
+        <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-center">Post a Skill</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Type Selection */}
           <div className="flex space-x-4">
-            <label className="flex items-center">
-              <input type="radio" name="type" value="offer" checked={form.type === 'offer'} onChange={handleChange} className="mr-2" /> Offer
+            <label className="flex items-center cursor-pointer">
+              <input type="radio" name="type" value="offer" checked={form.type === 'offer'} onChange={handleChange} className="mr-2 accent-credAccent" />
+              <span className={form.type === 'offer' ? 'text-green-400 font-semibold' : ''}>🎯 Offer</span>
             </label>
-            <label className="flex items-center">
-              <input type="radio" name="type" value="request" checked={form.type === 'request'} onChange={handleChange} className="mr-2" /> Request
+            <label className="flex items-center cursor-pointer">
+              <input type="radio" name="type" value="request" checked={form.type === 'request'} onChange={handleChange} className="mr-2 accent-credAccent" />
+              <span className={form.type === 'request' ? 'text-blue-400 font-semibold' : ''}>📖 Request</span>
             </label>
           </div>
+
+          {/* Category */}
           <div>
-            <label className="block mb-1 text-credWhite/80">Skill Name</label>
+            <label className="block mb-1 text-credWhite/80 text-sm">Category</label>
+            <select
+              name="category"
+              value={form.category}
+              onChange={handleChange}
+              className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent"
+            >
+              {categories.map(cat => (
+                <option key={cat.value} value={cat.value}>{cat.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Skill Name */}
+          <div>
+            <label className="block mb-1 text-credWhite/80 text-sm">Skill Name *</label>
             <input name="skillName" type="text" required value={form.skillName} onChange={handleChange} className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent" />
           </div>
+
+          {/* Experience Level (only for offers) */}
+          {form.type === 'offer' && (
+            <div>
+              <label className="block mb-1 text-credWhite/80 text-sm">Your Experience Level</label>
+              <div className="flex gap-2">
+                {[
+                  { value: 'beginner', label: '🌱 Beginner', color: 'bg-green-600' },
+                  { value: 'intermediate', label: '📈 Intermediate', color: 'bg-yellow-600' },
+                  { value: 'expert', label: '⭐ Expert', color: 'bg-purple-600' },
+                ].map(level => (
+                  <button
+                    key={level.value}
+                    type="button"
+                    onClick={() => setForm({ ...form, experienceLevel: level.value })}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${form.experienceLevel === level.value
+                      ? `${level.color} text-white scale-105`
+                      : 'bg-credBlack text-credWhite/60 hover:bg-credBlack/80'
+                      }`}
+                  >
+                    {level.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Description */}
           <div>
-            <label className="block mb-1 text-credWhite/80">Description</label>
-            <textarea name="description" value={form.description} onChange={handleChange} className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent" />
+            <label className="block mb-1 text-credWhite/80 text-sm">Description</label>
+            <textarea name="description" value={form.description} onChange={handleChange} rows={3} className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent" placeholder="Describe what you can teach or want to learn..." />
           </div>
+
+          {/* Proof URL (only for offers) */}
+          {form.type === 'offer' && (
+            <div>
+              <label className="block mb-1 text-credWhite/80 text-sm">
+                Proof URL <span className="text-credWhite/40">(optional - for verification)</span>
+              </label>
+              <input
+                name="proofUrl"
+                type="url"
+                value={form.proofUrl}
+                onChange={handleChange}
+                className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent"
+                placeholder="Link to portfolio, certificate, YouTube, etc."
+              />
+              <p className="text-xs text-credWhite/40 mt-1">
+                Add proof to get a ✅ Verified badge! Admins will review.
+              </p>
+            </div>
+          )}
+
+          {/* Availability */}
           <div>
-            <label className="block mb-1 text-credWhite/80">Availability</label>
+            <label className="block mb-1 text-credWhite/80 text-sm">Availability</label>
             <input name="availability" type="text" value={form.availability} onChange={handleChange} className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent" placeholder="e.g. Weekends, Evenings" />
           </div>
+
+          {/* Location */}
           <div>
-            <label className="block mb-1 text-credWhite/80">Location</label>
-            <input name="location" type="text" value={form.location} onChange={handleChange} className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent" />
+            <label className="block mb-1 text-credWhite/80 text-sm">Location</label>
+            <input name="location" type="text" value={form.location} onChange={handleChange} className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent" placeholder="City or 'Remote'" />
           </div>
+
           {error && <div className="text-red-400 text-sm text-center">{error}</div>}
           {success && <div className="text-green-400 text-sm text-center">{success}</div>}
           <button type="submit" className="w-full py-3 rounded-full bg-credAccent text-credBlack font-semibold text-lg shadow-lg hover:scale-105 transition-transform" disabled={loading}>{loading ? 'Posting...' : 'Post Skill'}</button>
         </form>
         <div className="text-center mt-4 text-credWhite/70">
-          <Link to="/skills" className="text-credAccent hover:underline">Back to Skill Board</Link>
+          <Link to="/skills" className="text-credAccent hover:underline">← Back to Skill Board</Link>
         </div>
       </div>
     </div>
@@ -604,29 +704,78 @@ function SkillBoard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {filtered.length === 0 && <div className="col-span-2 text-center text-credWhite/60">No skills found.</div>}
           {filtered.map(skill => (
-            <div key={skill._id} className="bg-credGray rounded-xl p-6 shadow-lg flex flex-col space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide" style={{ background: skill.type === 'offer' ? '#2ed573' : '#232326', color: skill.type === 'offer' ? '#18181a' : '#f7f7fa' }}>{skill.type}</span>
-                <span className="text-sm text-credWhite/60">{skill.timestamp && new Date(skill.timestamp).toLocaleString()}</span>
+            <div key={skill._id} className="bg-credGray rounded-xl p-5 shadow-lg flex flex-col space-y-2">
+              {/* Header Row */}
+              <div className="flex justify-between items-start flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 items-center">
+                  {/* Type Badge */}
+                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide" style={{ background: skill.type === 'offer' ? '#2ed573' : '#232326', color: skill.type === 'offer' ? '#18181a' : '#f7f7fa' }}>{skill.type}</span>
+
+                  {/* Verification Badge */}
+                  {skill.verificationStatus === 'verified' && (
+                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30">
+                      ✅ Verified
+                    </span>
+                  )}
+                  {skill.verificationStatus === 'pending' && (
+                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                      ⏳ Pending
+                    </span>
+                  )}
+
+                  {/* Category Badge */}
+                  {skill.category && skill.category !== 'other' && (
+                    <span className="px-2 py-1 rounded-full text-xs bg-credBlack/50 text-credWhite/70">
+                      {skill.category === 'technology' && '💻'}
+                      {skill.category === 'music' && '🎵'}
+                      {skill.category === 'languages' && '🌍'}
+                      {skill.category === 'arts' && '🎨'}
+                      {skill.category === 'sports' && '⚽'}
+                      {skill.category === 'academics' && '📚'}
+                      {skill.category === 'business' && '💼'}
+                      {skill.category === 'lifestyle' && '🌱'}
+                      {' '}{skill.category.charAt(0).toUpperCase() + skill.category.slice(1)}
+                    </span>
+                  )}
+
+                  {/* Experience Level (for offers) */}
+                  {skill.type === 'offer' && skill.experienceLevel && (
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${skill.experienceLevel === 'expert' ? 'bg-purple-500/20 text-purple-400' :
+                        skill.experienceLevel === 'intermediate' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-green-500/20 text-green-400'
+                      }`}>
+                      {skill.experienceLevel === 'expert' && '⭐ Expert'}
+                      {skill.experienceLevel === 'intermediate' && '📈 Intermediate'}
+                      {skill.experienceLevel === 'beginner' && '🌱 Beginner'}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-credWhite/50">{skill.timestamp && new Date(skill.timestamp).toLocaleDateString()}</span>
               </div>
-              <h3 className="text-xl font-bold">{skill.skillName}</h3>
-              <p className="text-credWhite/80">{skill.description}</p>
-              <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 text-credWhite/70 text-sm">
-                <span>By: {skill.userId?.name || 'User'}</span>
-                <span>Location: {skill.location || 'N/A'}</span>
-                <span>Availability: {skill.availability || 'N/A'}</span>
+
+              {/* Skill Name */}
+              <h3 className="text-lg font-bold">{skill.skillName}</h3>
+
+              {/* Description */}
+              {skill.description && <p className="text-credWhite/70 text-sm">{skill.description}</p>}
+
+              {/* Meta Info */}
+              <div className="flex flex-wrap gap-3 text-credWhite/60 text-xs">
+                <span>👤 {skill.userId?.name || 'User'}</span>
+                {skill.location && <span>📍 {skill.location}</span>}
+                {skill.availability && <span>🕐 {skill.availability}</span>}
               </div>
 
               {/* Action buttons */}
-              <div className="flex space-x-2 mt-4">
+              <div className="flex space-x-2 mt-3 pt-2 border-t border-credBlack/30">
                 {/* Delete button - only show for current user's skills */}
                 {skill.userId?._id === currentUserId && (
                   <button
                     onClick={() => handleDeleteSkill(skill._id)}
                     disabled={deleteLoading[skill._id]}
-                    className="px-4 py-2 rounded-full bg-red-600 text-white font-semibold hover:scale-105 transition-transform disabled:opacity-50"
+                    className="px-3 py-1.5 rounded-full bg-red-600 text-white text-xs font-semibold hover:scale-105 transition-transform disabled:opacity-50"
                   >
-                    {deleteLoading[skill._id] ? 'Deleting...' : 'Delete Skill'}
+                    {deleteLoading[skill._id] ? 'Deleting...' : '🗑️ Delete'}
                   </button>
                 )}
               </div>
