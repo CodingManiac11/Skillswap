@@ -4,7 +4,73 @@ const Match = require('../models/Match');
 const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
-// All review routes require authentication
+// Simple POST endpoint for chat review modal (no auth token required)
+router.post('/', async (req, res) => {
+  try {
+    const { reviewerId, targetUserId, matchId, rating, comment } = req.body;
+
+    // Validate required fields
+    if (!reviewerId || !targetUserId || !matchId || !rating) {
+      return res.status(400).json({ message: 'Missing required fields.' });
+    }
+
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Rating must be between 1 and 5.' });
+    }
+
+    // Prevent self-review
+    if (reviewerId === targetUserId) {
+      return res.status(400).json({ message: 'You cannot review yourself.' });
+    }
+
+    // Verify the match exists
+    const match = await Match.findById(matchId);
+    if (!match) {
+      return res.status(404).json({ message: 'Match not found.' });
+    }
+
+    // Get the target user
+    const user = await User.findById(targetUserId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Check if reviewer already reviewed this match
+    const existingReview = user.reviews?.find(r => r.matchId && r.matchId.toString() === matchId);
+    if (existingReview) {
+      return res.status(400).json({ message: 'You have already reviewed this skill exchange.' });
+    }
+
+    // Initialize reviews array if not exists
+    if (!user.reviews) {
+      user.reviews = [];
+    }
+
+    // Add the review
+    user.reviews.push({
+      reviewerId,
+      matchId,
+      rating: Number(rating),
+      comment: comment || '',
+      createdAt: new Date()
+    });
+    await user.save();
+
+    // Update user's average rating
+    const totalRating = user.reviews.reduce((sum, r) => sum + (r.rating || 0), 0);
+    const ratingCount = user.reviews.length;
+    const averageRating = Math.round((totalRating / ratingCount) * 10) / 10;
+    await User.findByIdAndUpdate(targetUserId, { averageRating, ratingCount });
+
+    console.log(`Review submitted: ${reviewerId} reviewed ${targetUserId} for match ${matchId}`);
+    res.status(201).json({ message: 'Review submitted successfully!', averageRating, ratingCount });
+  } catch (err) {
+    console.error('Error submitting review:', err);
+    res.status(500).json({ message: 'Server error.', error: err.message });
+  }
+});
+
+// Auth-protected routes below
 router.use(authMiddleware);
 
 /**

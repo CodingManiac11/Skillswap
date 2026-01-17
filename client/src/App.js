@@ -829,6 +829,13 @@ function Chat() {
   const [matchInfo, setMatchInfo] = useState(null);
   const [markingComplete, setMarkingComplete] = useState(false);
 
+  // Review modal state
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+
   // Backend URL for API calls (same as socket)
   const API_URL = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000';
 
@@ -950,6 +957,42 @@ function Chat() {
       alert('Failed to mark session as complete.');
     }
     setMarkingComplete(false);
+  };
+
+  // Submit review
+  const submitReview = async () => {
+    if (!matchInfo?._id) {
+      alert('No match found for review.');
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reviewerId: userId,
+          targetUserId: otherUserId,
+          matchId: matchInfo._id,
+          rating: reviewRating,
+          comment: reviewComment
+        })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setReviewSubmitted(true);
+        setShowReviewModal(false);
+        alert('⭐ Review submitted! Thank you for your feedback.');
+      } else {
+        alert(data.message || 'Failed to submit review');
+      }
+    } catch (err) {
+      console.error('Error submitting review:', err);
+      alert('Failed to submit review.');
+    }
+    setSubmittingReview(false);
   };
 
   // Auto-scroll to bottom when new messages arrive
@@ -1161,10 +1204,12 @@ function Chat() {
                   ✅ Completed
                 </span>
                 <button
-                  onClick={() => navigate('/profile')}
-                  className="px-3 py-1.5 rounded-full bg-yellow-500 text-black text-xs font-semibold hover:scale-105 transition-transform flex items-center gap-1"
+                  onClick={() => setShowReviewModal(true)}
+                  disabled={reviewSubmitted}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold hover:scale-105 transition-transform flex items-center gap-1 ${reviewSubmitted ? 'bg-gray-500 text-gray-300' : 'bg-yellow-500 text-black'
+                    }`}
                 >
-                  ⭐ Review
+                  {reviewSubmitted ? '✅ Reviewed' : '⭐ Review'}
                 </button>
               </>
             )}
@@ -1268,6 +1313,65 @@ function Chat() {
           </button>
         </form>
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-credGray rounded-2xl p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold text-center mb-4">
+              ⭐ Review {otherUserName}
+            </h3>
+
+            {/* Star Rating */}
+            <div className="flex justify-center gap-2 mb-4">
+              {[1, 2, 3, 4, 5].map(star => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setReviewRating(star)}
+                  className={`text-3xl transition-transform hover:scale-110 ${star <= reviewRating ? 'text-yellow-400' : 'text-gray-500'
+                    }`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            <p className="text-center text-sm text-credWhite/60 mb-4">
+              {reviewRating === 1 && 'Poor'}
+              {reviewRating === 2 && 'Fair'}
+              {reviewRating === 3 && 'Good'}
+              {reviewRating === 4 && 'Very Good'}
+              {reviewRating === 5 && 'Excellent!'}
+            </p>
+
+            {/* Comment */}
+            <textarea
+              value={reviewComment}
+              onChange={(e) => setReviewComment(e.target.value)}
+              placeholder="Share your experience... (optional)"
+              className="w-full px-4 py-3 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent mb-4"
+              rows={3}
+            />
+
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowReviewModal(false)}
+                className="flex-1 py-2 rounded-lg bg-credBlack text-credWhite font-semibold hover:bg-credBlack/80 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitReview}
+                disabled={submittingReview}
+                className="flex-1 py-2 rounded-lg bg-credAccent text-credBlack font-semibold hover:scale-105 transition-transform disabled:opacity-50"
+              >
+                {submittingReview ? 'Submitting...' : 'Submit Review'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div >
   );
 }
