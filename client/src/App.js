@@ -895,25 +895,28 @@ function Chat() {
         console.log('Looking for otherUserId:', otherUserId);
         console.log('Matches data:', data);
         if (Array.isArray(data)) {
-          // Log each match's IDs for debugging
+          // Log each match's info for debugging
           data.forEach((m, i) => {
-            const reqId = m.requesterId?._id || m.requesterId;
-            const offId = m.offererId?._id || m.offererId;
-            console.log(`Match ${i}: reqId=${reqId}, offId=${offId}, status=${m.status}`);
+            const skillOwnerId = m.userId?._id || m.userId;
+            console.log(`Match ${i}: skillOwner=${skillOwnerId}, matchStatus=${m.matchStatus}, matchId=${m.matchId}`);
           });
 
-          // Find the match with otherUserId (handle both populated and plain ID)
+          // Find the match with otherUserId - the skill owner is the other user
           const match = data.find(m => {
-            const reqId = m.requesterId?._id || m.requesterId;
-            const offId = m.offererId?._id || m.offererId;
-            const isMatch = (reqId === otherUserId || offId === otherUserId);
-            const isValidStatus = m.status === 'accepted' || m.status === 'completed';
+            const skillOwnerId = m.userId?._id || m.userId;
+            const isMatch = skillOwnerId === otherUserId;
+            const isValidStatus = m.matchStatus === 'accepted' || m.matchStatus === 'completed';
             return isMatch && isValidStatus;
           });
           console.log('Found match for Complete button:', match);
           if (match) {
-            setMatchInfo(match);
-            setSessionCompleted(match.status === 'completed');
+            // Transform to expected format
+            setMatchInfo({
+              _id: match.matchId,
+              status: match.matchStatus,
+              skillName: match.skillName
+            });
+            setSessionCompleted(match.matchStatus === 'completed');
           }
         }
       })
