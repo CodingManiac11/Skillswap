@@ -892,8 +892,16 @@ function Chat() {
     fetch(`/api/users/matches/${userId}`)
       .then(res => res.json())
       .then(data => {
-        console.log('Matches data for completion check:', data);
+        console.log('Looking for otherUserId:', otherUserId);
+        console.log('Matches data:', data);
         if (Array.isArray(data)) {
+          // Log each match's IDs for debugging
+          data.forEach((m, i) => {
+            const reqId = m.requesterId?._id || m.requesterId;
+            const offId = m.offererId?._id || m.offererId;
+            console.log(`Match ${i}: reqId=${reqId}, offId=${offId}, status=${m.status}`);
+          });
+
           // Find the match with otherUserId (handle both populated and plain ID)
           const match = data.find(m => {
             const reqId = m.requesterId?._id || m.requesterId;
