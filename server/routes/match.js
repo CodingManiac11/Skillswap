@@ -526,7 +526,11 @@ router.post('/complete', async (req, res) => {
     }
 
     // Verify user is involved in this match
-    const isInvolved = match.requesterId.toString() === userId || match.offererId.toString() === userId;
+    const reqId = match.requesterId?.toString() || '';
+    const offId = match.offererId?.toString() || '';
+    console.log(`Complete request: userId=${userId}, matchId=${matchId}, reqId=${reqId}, offId=${offId}`);
+
+    const isInvolved = reqId === userId || offId === userId;
     if (!isInvolved) {
       return res.status(403).json({ message: 'You are not involved in this match.' });
     }
