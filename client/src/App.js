@@ -892,12 +892,17 @@ function Chat() {
     fetch(`/api/users/matches/${userId}`)
       .then(res => res.json())
       .then(data => {
+        console.log('Matches data for completion check:', data);
         if (Array.isArray(data)) {
-          // Find the match with otherUserId
-          const match = data.find(m =>
-            (m.requesterId?._id === otherUserId || m.offererId?._id === otherUserId) &&
-            (m.status === 'accepted' || m.status === 'completed')
-          );
+          // Find the match with otherUserId (handle both populated and plain ID)
+          const match = data.find(m => {
+            const reqId = m.requesterId?._id || m.requesterId;
+            const offId = m.offererId?._id || m.offererId;
+            const isMatch = (reqId === otherUserId || offId === otherUserId);
+            const isValidStatus = m.status === 'accepted' || m.status === 'completed';
+            return isMatch && isValidStatus;
+          });
+          console.log('Found match for Complete button:', match);
           if (match) {
             setMatchInfo(match);
             setSessionCompleted(match.status === 'completed');
