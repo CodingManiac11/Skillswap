@@ -625,7 +625,6 @@ function MatchSuggestions() {
 
 
 function SkillBoard() {
-  const navigate = useNavigate();
   const locationHook = useLocation();
   const [skills, setSkills] = useState([]);
 
