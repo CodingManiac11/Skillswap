@@ -151,8 +151,11 @@ function Login() {
 }
 
 function SkillPostForm() {
+  const location = useLocation();
+  const preselectedType = location.state?.preselectedType || 'offer';
+
   const [form, setForm] = useState({
-    type: 'offer',
+    type: preselectedType,
     skillName: '',
     description: '',
     availability: '',
@@ -190,7 +193,14 @@ function SkillPostForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to post skill');
       setSuccess('Skill posted successfully!' + (form.proofUrl ? ' Verification pending.' : ''));
-      setTimeout(() => navigate('/skills'), 1000);
+
+      // Navigate to skills page with new skill ID for highlighting
+      setTimeout(() => navigate('/skills', {
+        state: {
+          newSkillId: data.skill?._id || data._id,
+          skillType: form.type
+        }
+      }), 800);
     } catch (err) {
       setError(err.message);
     }
@@ -615,16 +625,41 @@ function MatchSuggestions() {
 
 
 function SkillBoard() {
+  const navigate = useNavigate();
+  const locationHook = useLocation();
   const [skills, setSkills] = useState([]);
-  const [tab, setTab] = useState('offer');
-  const [search, setSearch] = useState('');
-  const [location, setLocation] = useState('');
-  const [availability, setAvailability] = useState('');
+
+  // Filter persistence with localStorage
+  const [tab, setTab] = useState(() => localStorage.getItem('skillBoard_tab') || 'offer');
+  const [search, setSearch] = useState(() => localStorage.getItem('skillBoard_search') || '');
+  const [location, setLocation] = useState(() => localStorage.getItem('skillBoard_location') || '');
+  const [availability, setAvailability] = useState(() => localStorage.getItem('skillBoard_availability') || '');
+
   const [deleteLoading, setDeleteLoading] = useState({});
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [userReviews, setUserReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const currentUserId = localStorage.getItem('userId');
+
+  // Highlight newly posted skill
+  const [highlightedSkillId, setHighlightedSkillId] = useState(null);
+
+  // Persist filters to localStorage
+  useEffect(() => {
+    localStorage.setItem('skillBoard_tab', tab);
+  }, [tab]);
+
+  useEffect(() => {
+    localStorage.setItem('skillBoard_search', search);
+  }, [search]);
+
+  useEffect(() => {
+    localStorage.setItem('skillBoard_location', location);
+  }, [location]);
+
+  useEffect(() => {
+    localStorage.setItem('skillBoard_availability', availability);
+  }, [availability]);
 
   const fetchSkills = async () => {
     try {
@@ -638,7 +673,21 @@ function SkillBoard() {
 
   useEffect(() => {
     fetchSkills();
-  }, []);
+
+    // Check if we came from posting a new skill (success highlighting)
+    if (locationHook.state?.newSkillId) {
+      setHighlightedSkillId(locationHook.state.newSkillId);
+      // Switch to the correct tab based on the posted skill type
+      if (locationHook.state.skillType) {
+        setTab(locationHook.state.skillType);
+      }
+      // Clear highlight after 5 seconds
+      setTimeout(() => setHighlightedSkillId(null), 5000);
+      // Clear the location state
+      window.history.replaceState({}, document.title);
+    }
+  }, [locationHook.state]);
+
 
   // Fetch reviews when skill is selected
   const fetchUserReviews = async (userId) => {
@@ -730,7 +779,7 @@ function SkillBoard() {
     (!search || skill.skillName.toLowerCase().includes(search.toLowerCase())) &&
     (!location || (skill.location || '').toLowerCase().includes(location.toLowerCase())) &&
     (!availability || (skill.availability || '').toLowerCase().includes(availability.toLowerCase()))
-  );
+  ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // Newest first
 
   return (
     <div className="min-h-screen bg-credBlack text-credWhite font-display flex flex-col items-center py-4 sm:py-8 px-4">
@@ -741,19 +790,71 @@ function SkillBoard() {
             <button onClick={() => setTab('request')} className={`px-4 sm:px-6 py-2 rounded-full font-semibold text-sm sm:text-base ${tab === 'request' ? 'bg-credAccent text-credBlack' : 'bg-credGray text-credWhite'} transition-colors`}>Requesting</button>
           </div>
           <div className="flex space-x-2">
-            <Link to="/post-skill" className="px-4 sm:px-6 py-2 rounded-full bg-credAccent text-credBlack font-semibold text-sm sm:text-base hover:scale-105 transition-transform">Post a Skill</Link>
+            {/* Contextual CTA Button */}
+            <Link
+              to="/post-skill"
+              state={{ preselectedType: tab }}
+              className="px-4 sm:px-6 py-2 rounded-full bg-credAccent text-credBlack font-semibold text-sm sm:text-base hover:scale-105 transition-transform flex items-center gap-2"
+            >
+              {tab === 'offer' ? '📚 Offer a Skill' : '🔍 Request a Skill'}
+            </Link>
             <Link to="/matches" className="px-4 sm:px-6 py-2 rounded-full bg-credGray text-credWhite font-semibold text-sm sm:text-base hover:bg-credAccent hover:text-credBlack transition-colors">Your Matches</Link>
           </div>
         </div>
+
+        {/* Filters with clear button */}
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search skill..." className="px-4 py-2 rounded-lg bg-credGray text-credWhite border border-credAccent focus:outline-none w-full sm:w-1/3" />
           <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location" className="px-4 py-2 rounded-lg bg-credGray text-credWhite border border-credAccent focus:outline-none w-full sm:w-1/3" />
           <input value={availability} onChange={e => setAvailability(e.target.value)} placeholder="Availability" className="px-4 py-2 rounded-lg bg-credGray text-credWhite border border-credAccent focus:outline-none w-full sm:w-1/3" />
+          {(search || location || availability) && (
+            <button
+              onClick={() => { setSearch(''); setLocation(''); setAvailability(''); }}
+              className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors text-sm"
+            >
+              ✕ Clear
+            </button>
+          )}
         </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {filtered.length === 0 && <div className="col-span-2 text-center text-credWhite/60">No skills found.</div>}
+          {/* Empty State CTA */}
+          {filtered.length === 0 && (
+            <div className="col-span-2 flex flex-col items-center justify-center py-16 px-8 bg-credGray/50 rounded-2xl border-2 border-dashed border-credAccent/30">
+              <div className="text-6xl mb-4">{tab === 'offer' ? '📚' : '🔍'}</div>
+              <h3 className="text-xl font-bold mb-2">
+                {tab === 'offer' ? 'No skills being offered' : 'No skill requests yet'}
+              </h3>
+              <p className="text-credWhite/60 text-center mb-6 max-w-md">
+                {tab === 'offer'
+                  ? 'Be the first to share what you know! Help others learn and grow.'
+                  : 'Looking to learn something new? Post a request and find your teacher!'}
+              </p>
+              <Link
+                to="/post-skill"
+                state={{ preselectedType: tab }}
+                className="px-6 py-3 rounded-full bg-credAccent text-credBlack font-bold hover:scale-105 transition-transform flex items-center gap-2"
+              >
+                {tab === 'offer' ? '✨ Offer Your First Skill' : '✨ Request Your First Skill'}
+              </Link>
+            </div>
+          )}
+
           {filtered.map(skill => (
-            <div key={skill._id} className="bg-credGray rounded-xl p-5 shadow-lg flex flex-col space-y-2 hover:shadow-xl transition-shadow">
+            <div
+              key={skill._id}
+              className={`bg-credGray rounded-xl p-5 shadow-lg flex flex-col space-y-2 hover:shadow-xl transition-all ${highlightedSkillId === skill._id
+                ? 'ring-2 ring-credAccent animate-pulse'
+                : ''
+                }`}
+              style={highlightedSkillId === skill._id ? { animation: 'pulse 2s ease-in-out infinite' } : {}}
+            >
+              {/* NEW badge for highlighted skill */}
+              {highlightedSkillId === skill._id && (
+                <div className="flex justify-center -mt-3 -mx-5 mb-2 py-1 bg-credAccent text-credBlack text-xs font-bold rounded-t-xl">
+                  🎉 Just Posted!
+                </div>
+              )}
               {/* Header Row */}
               <div className="flex justify-between items-start flex-wrap gap-2">
                 <div className="flex flex-wrap gap-2 items-center">
