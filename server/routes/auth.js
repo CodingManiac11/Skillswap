@@ -42,10 +42,24 @@ router.post('/login', async (req, res) => {
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials.' });
     }
+
+    // Check if user is banned
+    if (user.isBanned) {
+      return res.status(403).json({
+        message: 'Your account has been suspended.' + (user.bannedReason ? ` Reason: ${user.bannedReason}` : ''),
+        banned: true
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials.' });
     }
+
+    // Update last login time
+    user.lastLoginAt = new Date();
+    await user.save();
+
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'devsecret', { expiresIn: '7d' });
     res.json({ token, user: { id: user._id, name: user.name, email: user.email } });
   } catch (err) {

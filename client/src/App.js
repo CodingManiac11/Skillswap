@@ -621,7 +621,9 @@ function SkillBoard() {
   const [location, setLocation] = useState('');
   const [availability, setAvailability] = useState('');
   const [deleteLoading, setDeleteLoading] = useState({});
-  // const navigate = useNavigate(); // Removed - unused
+  const [selectedSkill, setSelectedSkill] = useState(null);
+  const [userReviews, setUserReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
   const currentUserId = localStorage.getItem('userId');
 
   const fetchSkills = async () => {
@@ -637,6 +639,32 @@ function SkillBoard() {
   useEffect(() => {
     fetchSkills();
   }, []);
+
+  // Fetch reviews when skill is selected
+  const fetchUserReviews = async (userId) => {
+    setLoadingReviews(true);
+    try {
+      const res = await fetch(`/api/reviews/user/${userId}`);
+      const data = await res.json();
+      setUserReviews(data.reviews || []);
+    } catch (err) {
+      console.error('Error fetching reviews:', err);
+      setUserReviews([]);
+    }
+    setLoadingReviews(false);
+  };
+
+  const handleViewDetails = (skill) => {
+    setSelectedSkill(skill);
+    if (skill.userId?._id) {
+      fetchUserReviews(skill.userId._id);
+    }
+  };
+
+  const closeModal = () => {
+    setSelectedSkill(null);
+    setUserReviews([]);
+  };
 
   const handleDeleteSkill = async (skillId) => {
     if (!currentUserId) {
@@ -663,7 +691,6 @@ function SkillBoard() {
       console.log('Delete response:', { status: res.status, result });
 
       if (res.ok) {
-        // Refresh skills list
         await fetchSkills();
         alert('Skill deleted successfully');
       } else {
@@ -676,6 +703,26 @@ function SkillBoard() {
     } finally {
       setDeleteLoading(prev => ({ ...prev, [skillId]: false }));
     }
+  };
+
+  // Helper function to detect URL type
+  const getUrlType = (url) => {
+    if (!url) return 'none';
+    const lowerUrl = url.toLowerCase();
+    if (lowerUrl.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/)) return 'image';
+    if (lowerUrl.match(/\.pdf(\?.*)?$/)) return 'pdf';
+    if (lowerUrl.includes('youtube.com/watch') || lowerUrl.includes('youtu.be/')) return 'youtube';
+    if (lowerUrl.includes('vimeo.com')) return 'vimeo';
+    if (lowerUrl.includes('docs.google.com') || lowerUrl.includes('drive.google.com')) return 'gdrive';
+    if (lowerUrl.includes('linkedin.com')) return 'linkedin';
+    if (lowerUrl.includes('github.com')) return 'github';
+    return 'link';
+  };
+
+  // Helper to get embed URL for YouTube
+  const getYoutubeEmbedUrl = (url) => {
+    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+    return match ? `https://www.youtube.com/embed/${match[1]}` : null;
   };
 
   const filtered = skills.filter(skill =>
@@ -706,7 +753,7 @@ function SkillBoard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {filtered.length === 0 && <div className="col-span-2 text-center text-credWhite/60">No skills found.</div>}
           {filtered.map(skill => (
-            <div key={skill._id} className="bg-credGray rounded-xl p-5 shadow-lg flex flex-col space-y-2">
+            <div key={skill._id} className="bg-credGray rounded-xl p-5 shadow-lg flex flex-col space-y-2 hover:shadow-xl transition-shadow">
               {/* Header Row */}
               <div className="flex justify-between items-start flex-wrap gap-2">
                 <div className="flex flex-wrap gap-2 items-center">
@@ -724,19 +771,10 @@ function SkillBoard() {
                       ⏳ Pending
                     </span>
                   )}
-
-                  {/* Category Badge */}
-                  {skill.category && skill.category !== 'other' && (
-                    <span className="px-2 py-1 rounded-full text-xs bg-credBlack/50 text-credWhite/70">
-                      {skill.category === 'technology' && '💻'}
-                      {skill.category === 'music' && '🎵'}
-                      {skill.category === 'languages' && '🌍'}
-                      {skill.category === 'arts' && '🎨'}
-                      {skill.category === 'sports' && '⚽'}
-                      {skill.category === 'academics' && '📚'}
-                      {skill.category === 'business' && '💼'}
-                      {skill.category === 'lifestyle' && '🌱'}
-                      {' '}{skill.category.charAt(0).toUpperCase() + skill.category.slice(1)}
+                  {/* Unverified badge - only show if skill has no verification */}
+                  {(!skill.verificationStatus || skill.verificationStatus === 'unverified') && (
+                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                      ❓ Unverified
                     </span>
                   )}
 
@@ -746,9 +784,9 @@ function SkillBoard() {
                       skill.experienceLevel === 'intermediate' ? 'bg-yellow-500/20 text-yellow-400' :
                         'bg-green-500/20 text-green-400'
                       }`}>
-                      {skill.experienceLevel === 'expert' && '⭐ Expert'}
-                      {skill.experienceLevel === 'intermediate' && '📈 Intermediate'}
-                      {skill.experienceLevel === 'beginner' && '🌱 Beginner'}
+                      {skill.experienceLevel === 'expert' && '⭐'}
+                      {skill.experienceLevel === 'intermediate' && '📈'}
+                      {skill.experienceLevel === 'beginner' && '🌱'}
                     </span>
                   )}
                 </div>
@@ -756,12 +794,9 @@ function SkillBoard() {
               </div>
 
               {/* Skill Name */}
-              <h3 className="text-lg font-bold">{skill.skillName}</h3>
+              <h3 className="text-lg font-bold text-credAccent">{skill.skillName}</h3>
 
-              {/* Description */}
-              {skill.description && <p className="text-credWhite/70 text-sm">{skill.description}</p>}
-
-              {/* Meta Info */}
+              {/* Meta Info - Compact */}
               <div className="flex flex-wrap gap-3 text-credWhite/60 text-xs">
                 <span>👤 {skill.userId?.name || 'User'}</span>
                 {skill.location && <span>📍 {skill.location}</span>}
@@ -770,6 +805,14 @@ function SkillBoard() {
 
               {/* Action buttons */}
               <div className="flex space-x-2 mt-3 pt-2 border-t border-credBlack/30">
+                {/* View Details Button */}
+                <button
+                  onClick={() => handleViewDetails(skill)}
+                  className="px-3 py-1.5 rounded-full bg-credAccent text-credBlack text-xs font-semibold hover:scale-105 transition-transform"
+                >
+                  👁️ View Details
+                </button>
+
                 {/* Delete button - only show for current user's skills */}
                 {skill.userId?._id === currentUserId && (
                   <button
@@ -785,9 +828,214 @@ function SkillBoard() {
           ))}
         </div>
       </div>
+
+      {/* Skill Detail Modal */}
+      {selectedSkill && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={closeModal}>
+          <div
+            className="bg-credGray rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-credGray border-b border-credBlack/30 p-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-credAccent">Skill Details</h2>
+              <button
+                onClick={closeModal}
+                className="p-2 hover:bg-credBlack/30 rounded-full transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Skill Info Section */}
+              <div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase" style={{ background: selectedSkill.type === 'offer' ? '#2ed573' : '#3b82f6', color: '#18181a' }}>
+                    {selectedSkill.type === 'offer' ? '🎯 Offering' : '📚 Requesting'}
+                  </span>
+                  {selectedSkill.category && (
+                    <span className="px-2 py-1 rounded-full text-xs bg-credBlack/50 text-credWhite/70">
+                      {selectedSkill.category === 'technology' && '💻'}
+                      {selectedSkill.category === 'music' && '🎵'}
+                      {selectedSkill.category === 'languages' && '🌍'}
+                      {selectedSkill.category === 'arts' && '🎨'}
+                      {selectedSkill.category === 'sports' && '⚽'}
+                      {selectedSkill.category === 'academics' && '📚'}
+                      {selectedSkill.category === 'business' && '💼'}
+                      {selectedSkill.category === 'lifestyle' && '🌱'}
+                      {' '}{selectedSkill.category.charAt(0).toUpperCase() + selectedSkill.category.slice(1)}
+                    </span>
+                  )}
+                  {selectedSkill.experienceLevel && (
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${selectedSkill.experienceLevel === 'expert' ? 'bg-purple-500/20 text-purple-400' :
+                      selectedSkill.experienceLevel === 'intermediate' ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-green-500/20 text-green-400'
+                      }`}>
+                      {selectedSkill.experienceLevel === 'expert' && '⭐ Expert'}
+                      {selectedSkill.experienceLevel === 'intermediate' && '📈 Intermediate'}
+                      {selectedSkill.experienceLevel === 'beginner' && '🌱 Beginner'}
+                    </span>
+                  )}
+                  {selectedSkill.verificationStatus === 'verified' && (
+                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30">
+                      ✅ Verified Skill
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-2xl font-bold mb-2">{selectedSkill.skillName}</h3>
+                {selectedSkill.description && (
+                  <p className="text-credWhite/80">{selectedSkill.description}</p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-4 text-sm text-credWhite/60">
+                  {selectedSkill.location && <span>📍 {selectedSkill.location}</span>}
+                  {selectedSkill.availability && <span>🕐 {selectedSkill.availability}</span>}
+                  <span>📅 Posted {new Date(selectedSkill.timestamp).toLocaleDateString()}</span>
+                </div>
+              </div>
+
+              {/* User Info Section */}
+              <div className="bg-credBlack/30 rounded-xl p-4">
+                <h4 className="text-sm font-semibold text-credWhite/60 mb-3">POSTED BY</h4>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-credAccent/20 rounded-full flex items-center justify-center text-2xl">
+                    👤
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-bold text-lg flex items-center gap-2">
+                      {selectedSkill.userId?.name || 'Unknown User'}
+                      {selectedSkill.userId?.isVerified && (
+                        <span className="text-blue-400 text-sm">✓ Trusted</span>
+                      )}
+                    </div>
+                    <div className="text-sm text-credWhite/60">{selectedSkill.userId?.email}</div>
+                    {selectedSkill.userId?.averageRating > 0 && (
+                      <div className="text-sm text-yellow-400 mt-1">
+                        ⭐ {selectedSkill.userId.averageRating.toFixed(1)} ({selectedSkill.userId.ratingCount || 0} reviews)
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Evidence/Proof Section */}
+              {selectedSkill.proofUrl && (
+                <div className="bg-credBlack/30 rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 border-b border-credBlack/30 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">📄 Evidence / Proof</span>
+                      <span className="px-2 py-0.5 bg-credBlack/50 text-credWhite/60 rounded text-xs capitalize">
+                        {getUrlType(selectedSkill.proofUrl) === 'gdrive' ? 'Google Drive' : getUrlType(selectedSkill.proofUrl)}
+                      </span>
+                    </div>
+                    <a
+                      href={selectedSkill.proofUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      🔗 Open Link
+                    </a>
+                  </div>
+                  <div className="p-4">
+                    {/* Image Preview */}
+                    {getUrlType(selectedSkill.proofUrl) === 'image' && (
+                      <img
+                        src={selectedSkill.proofUrl}
+                        alt="Skill proof"
+                        className="max-w-full max-h-[300px] mx-auto rounded-lg"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    )}
+
+                    {/* YouTube Embed */}
+                    {getUrlType(selectedSkill.proofUrl) === 'youtube' && (
+                      <div className="aspect-video">
+                        <iframe
+                          src={getYoutubeEmbedUrl(selectedSkill.proofUrl)}
+                          className="w-full h-full rounded-lg"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          title="Proof video"
+                        />
+                      </div>
+                    )}
+
+                    {/* PDF Preview */}
+                    {getUrlType(selectedSkill.proofUrl) === 'pdf' && (
+                      <div className="text-center py-8">
+                        <div className="text-4xl mb-2">📄</div>
+                        <p className="text-credWhite/60">PDF Document</p>
+                        <p className="text-xs text-credWhite/40 mt-1">Click "Open Link" to view</p>
+                      </div>
+                    )}
+
+                    {/* Other Links */}
+                    {['gdrive', 'linkedin', 'github', 'link', 'vimeo'].includes(getUrlType(selectedSkill.proofUrl)) && (
+                      <div className="text-center py-6">
+                        <div className="text-3xl mb-2">
+                          {getUrlType(selectedSkill.proofUrl) === 'gdrive' && '📁'}
+                          {getUrlType(selectedSkill.proofUrl) === 'linkedin' && '💼'}
+                          {getUrlType(selectedSkill.proofUrl) === 'github' && '🐙'}
+                          {(getUrlType(selectedSkill.proofUrl) === 'link' || getUrlType(selectedSkill.proofUrl) === 'vimeo') && '🌐'}
+                        </div>
+                        <p className="text-credWhite/60 text-sm">External link - click "Open Link" to view</p>
+                        <p className="font-mono text-xs text-credWhite/40 mt-2 break-all">{selectedSkill.proofUrl}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Reviews Section */}
+              <div className="bg-credBlack/30 rounded-xl p-4">
+                <h4 className="text-sm font-semibold text-credWhite/60 mb-3">USER REVIEWS</h4>
+                {loadingReviews ? (
+                  <div className="text-center py-4 text-credWhite/60">Loading reviews...</div>
+                ) : userReviews.length === 0 ? (
+                  <div className="text-center py-4 text-credWhite/40">No reviews yet</div>
+                ) : (
+                  <div className="space-y-3">
+                    {userReviews.slice(0, 5).map((review, idx) => (
+                      <div key={idx} className="bg-credBlack/30 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-yellow-400">
+                            {'⭐'.repeat(review.rating || 0)}
+                          </span>
+                          <span className="text-xs text-credWhite/60">
+                            by {review.reviewerId?.name || 'Anonymous'}
+                          </span>
+                        </div>
+                        {review.comment && (
+                          <p className="text-sm text-credWhite/80">{review.comment}</p>
+                        )}
+                      </div>
+                    ))}
+                    {userReviews.length > 5 && (
+                      <p className="text-xs text-credWhite/40 text-center">+{userReviews.length - 5} more reviews</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="sticky bottom-0 bg-credGray border-t border-credBlack/30 p-4 flex justify-end gap-2">
+              <button
+                onClick={closeModal}
+                className="px-6 py-2 rounded-full bg-credBlack text-credWhite font-semibold hover:bg-credBlack/80 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 // Socket.IO connection singleton
 let socket = null;
@@ -836,6 +1084,10 @@ function Chat() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
+  // Block state
+  const [blockStatus, setBlockStatus] = useState({ iBlockedThem: false, theyBlockedMe: false, canMessage: true });
+  const [blockLoading, setBlockLoading] = useState(false);
+
   // Backend URL for API calls (same as socket)
   const API_URL = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000';
 
@@ -847,6 +1099,41 @@ function Chat() {
       .then(data => setGoogleConnected(data.connected))
       .catch(() => setGoogleConnected(false));
   }, [userId, API_URL]);
+
+  // Fetch block status when chat opens
+  useEffect(() => {
+    if (!userId || !otherUserId) return;
+    fetch(`/api/messages/block-status/${userId}/${otherUserId}`)
+      .then(res => res.json())
+      .then(data => setBlockStatus(data))
+      .catch(err => console.error('Error fetching block status:', err));
+  }, [userId, otherUserId]);
+
+  // Toggle block/unblock
+  const toggleBlock = async () => {
+    setBlockLoading(true);
+    try {
+      const endpoint = blockStatus.iBlockedThem ? 'unblock' : 'block';
+      const res = await fetch(`/api/messages/${endpoint}/${userId}/${otherUserId}`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setBlockStatus(prev => ({
+          ...prev,
+          iBlockedThem: data.blocked,
+          canMessage: !data.blocked && !prev.theyBlockedMe
+        }));
+      } else {
+        alert(data.message || 'Failed to update block status');
+      }
+    } catch (err) {
+      console.error('Error toggling block:', err);
+      alert('Failed to update block status');
+    }
+    setBlockLoading(false);
+  };
 
   // Create Google Meet link
   const createMeeting = async () => {
@@ -1063,6 +1350,19 @@ function Chat() {
       }
     });
 
+    // Handle message errors (e.g., blocked user)
+    socket.on('message_error', (data) => {
+      console.log('Message error:', data);
+      setError(data.error || 'Failed to send message');
+      if (data.blocked) {
+        // Refresh block status
+        fetch(`/api/messages/block-status/${userId}/${otherUserId}`)
+          .then(res => res.json())
+          .then(status => setBlockStatus(status))
+          .catch(err => console.error('Error refreshing block status:', err));
+      }
+    });
+
     // Check if other user is already in chat
     socket.emit('check_user_in_chat', { otherUserId }, (isInChat) => {
       setOtherUserOnline(isInChat);
@@ -1094,6 +1394,7 @@ function Chat() {
       socket.off('connect_error');
       socket.off('user_joined_chat');
       socket.off('user_left_chat');
+      socket.off('message_error');
     };
   }, [userId, otherUserId]);
 
@@ -1101,6 +1402,14 @@ function Chat() {
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
+
+    // Don't send if blocked
+    if (!blockStatus.canMessage) {
+      setError(blockStatus.iBlockedThem
+        ? 'You have blocked this user. Unblock to send messages.'
+        : 'You cannot send messages to this user.');
+      return;
+    }
 
     const msgData = { senderId: userId, receiverId: otherUserId, message: input };
 
@@ -1213,8 +1522,34 @@ function Chat() {
                 </button>
               </>
             )}
+
+            {/* Block/Unblock Button */}
+            <button
+              onClick={toggleBlock}
+              disabled={blockLoading}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold hover:scale-105 transition-transform disabled:opacity-50 flex items-center gap-1 ${blockStatus.iBlockedThem
+                ? 'bg-gray-600 text-white'
+                : 'bg-red-600/80 text-white hover:bg-red-600'
+                }`}
+              title={blockStatus.iBlockedThem ? 'Unblock this user' : 'Block this user'}
+            >
+              {blockLoading ? '...' : blockStatus.iBlockedThem ? '🔓 Unblock' : '🚫 Block'}
+            </button>
           </div>
+
+          {/* Blocked Warning Banner */}
+          {blockStatus.theyBlockedMe && (
+            <div className="bg-red-500/20 text-red-400 text-xs text-center py-2 px-4 border-t border-red-500/30">
+              ⚠️ This user has blocked you. You cannot send messages.
+            </div>
+          )}
+          {blockStatus.iBlockedThem && !blockStatus.theyBlockedMe && (
+            <div className="bg-yellow-500/20 text-yellow-400 text-xs text-center py-2 px-4 border-t border-yellow-500/30">
+              🚫 You have blocked this user. Unblock to send messages.
+            </div>
+          )}
         </div>
+
 
         {/* Messages Container */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ background: '#1a1a1d' }}>
@@ -1618,15 +1953,50 @@ function Profile() {
         {/* Profile Information */}
         <div className="bg-credGray rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4">
-            <h2 className="text-3xl font-bold">Your Profile</h2>
-            {!isEditing && (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="px-4 py-2 rounded-full bg-credAccent text-credBlack font-semibold hover:scale-105 transition-transform"
-              >
-                ✏️ Edit Profile
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              <h2 className="text-3xl font-bold">Your Profile</h2>
+              {/* Verification Status Badge */}
+              {profile?.isVerified ? (
+                <span className="px-3 py-1 rounded-full text-sm font-semibold bg-green-500/20 text-green-400 border border-green-500/30">
+                  ✅ Verified
+                </span>
+              ) : (
+                <span className="px-3 py-1 rounded-full text-sm font-semibold bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                  ❓ Unverified
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {/* Request Verification Button */}
+              {!profile?.isVerified && (
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/admin/verification-request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId })
+                      });
+                      const data = await res.json();
+                      alert(data.message || 'Verification request sent to admin!');
+                    } catch (err) {
+                      alert('Failed to send verification request');
+                    }
+                  }}
+                  className="px-4 py-2 rounded-full bg-blue-600 text-white font-semibold hover:scale-105 transition-transform"
+                >
+                  🔒 Request Verification
+                </button>
+              )}
+              {!isEditing && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="px-4 py-2 rounded-full bg-credAccent text-credBlack font-semibold hover:scale-105 transition-transform"
+                >
+                  ✏️ Edit Profile
+                </button>
+              )}
+            </div>
           </div>
 
           {isEditing ? (
@@ -2023,6 +2393,8 @@ function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [pendingSkills, setPendingSkills] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [allSkills, setAllSkills] = useState([]);
+  const [skillSearch, setSkillSearch] = useState('');
 
   // Check if user is admin
   useEffect(() => {
@@ -2092,6 +2464,31 @@ function AdminDashboard() {
     }
   };
 
+  const handleDeleteUser = async (targetUserId, userName) => {
+    if (!window.confirm(`⚠️ DELETE USER: ${userName}\n\nThis will permanently delete:\n• User account\n• All their skills\n• All their matches\n• All their messages\n\nThis action cannot be undone. Continue?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/users/${targetUserId}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': userId }
+      });
+
+      if (res.ok) {
+        alert('User and all associated data deleted successfully.');
+        fetchUsers();
+        fetchStats();
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to delete user');
+      }
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      alert('Error deleting user');
+    }
+  };
+
   const handleVerifySkill = async (skillId, status) => {
     try {
       await fetch(`/api/admin/skills/${skillId}/verify`, {
@@ -2107,9 +2504,47 @@ function AdminDashboard() {
     }
   };
 
+  const fetchAllSkills = async () => {
+    try {
+      const res = await fetch(`/api/admin/skills/all?search=${skillSearch}`, {
+        headers: { 'x-user-id': userId }
+      });
+      const data = await res.json();
+      setAllSkills(data.skills || []);
+    } catch (err) {
+      console.error('Error fetching all skills:', err);
+    }
+  };
+
+  const handleDeleteSkill = async (skillId, skillName, userName) => {
+    if (!window.confirm(`🗑️ DELETE SKILL: ${skillName}\n\nPosted by: ${userName}\n\nThis will also delete any matches for this skill.\n\nContinue?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/skills/${skillId}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': userId }
+      });
+
+      if (res.ok) {
+        alert('Skill deleted successfully.');
+        fetchAllSkills();
+        fetchStats();
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to delete skill');
+      }
+    } catch (err) {
+      console.error('Error deleting skill:', err);
+      alert('Error deleting skill');
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'users' && isAdmin) fetchUsers();
     if (activeTab === 'verify' && isAdmin) fetchPendingSkills();
+    if (activeTab === 'skills' && isAdmin) fetchAllSkills();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isAdmin]);
 
@@ -2123,7 +2558,7 @@ function AdminDashboard() {
 
         {/* Tab Navigation */}
         <div className="flex gap-2 mb-6 flex-wrap">
-          {['stats', 'users', 'verify'].map(tab => (
+          {['stats', 'users', 'skills', 'verify'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -2132,6 +2567,7 @@ function AdminDashboard() {
             >
               {tab === 'stats' && '📊 Stats'}
               {tab === 'users' && '👥 Users'}
+              {tab === 'skills' && `🎯 Skills (${allSkills.length})`}
               {tab === 'verify' && `✅ Verify (${pendingSkills.length})`}
             </button>
           ))}
@@ -2189,21 +2625,80 @@ function AdminDashboard() {
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <button
-                      onClick={() => handleUserAction(user._id, 'verify', !user.isVerified)}
-                      className={`px-3 py-1 rounded text-xs font-semibold ${user.isVerified ? 'bg-green-600' : 'bg-gray-600'}`}
-                    >
-                      {user.isVerified ? '✅ Verified' : 'Verify'}
-                    </button>
-                    <button
                       onClick={() => handleUserAction(user._id, 'ban', !user.isBanned)}
                       className={`px-3 py-1 rounded text-xs font-semibold ${user.isBanned ? 'bg-red-600' : 'bg-gray-600'}`}
                     >
                       {user.isBanned ? '🚫 Banned' : 'Ban'}
                     </button>
+                    {/* Delete User Button */}
+                    {!user.isAdmin && (
+                      <button
+                        onClick={() => handleDeleteUser(user._id, user.name)}
+                        className="px-3 py-1 rounded text-xs font-semibold bg-red-800 hover:bg-red-900 text-white"
+                      >
+                        🗑️ Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+              ))}
+              {users.length === 0 && <div className="text-center text-credWhite/60 py-8">No users found</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Skills Tab */}
+        {activeTab === 'skills' && (
+          <div>
+            <div className="mb-4 flex gap-2">
+              <input
+                type="text"
+                placeholder="Search skills..."
+                value={skillSearch}
+                onChange={e => setSkillSearch(e.target.value)}
+                className="flex-1 px-4 py-2 rounded-lg bg-credGray text-credWhite border border-credBlack/30"
+              />
+              <button onClick={fetchAllSkills} className="px-4 py-2 bg-credAccent text-credBlack rounded-lg font-semibold">
+                🔍 Search
+              </button>
+            </div>
+            <div className="space-y-2">
+              {allSkills.map(skill => (
+                <div key={skill._id} className="p-4 bg-credGray rounded-xl flex flex-wrap items-center gap-4">
+                  <div className="flex-1 min-w-[200px]">
+                    <div className="font-bold flex items-center gap-2">
+                      {skill.skillName}
+                      <span className={`px-2 py-0.5 rounded text-xs ${skill.type === 'offer' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                        {skill.type}
+                      </span>
+                      {skill.verificationStatus === 'verified' && (
+                        <span className="text-green-400 text-xs">✅</span>
+                      )}
+                      {skill.verificationStatus === 'pending' && (
+                        <span className="text-yellow-400 text-xs">⏳</span>
+                      )}
+                    </div>
+                    <div className="text-sm text-credWhite/60">
+                      👤 {skill.userId?.name || 'Unknown'} • {skill.userId?.email || ''}
+                    </div>
+                    <div className="text-xs text-credWhite/40">
+                      {skill.category && `📁 ${skill.category}`}
+                      {skill.experienceLevel && ` • 📊 ${skill.experienceLevel}`}
+                      {skill.timestamp && ` • 📅 ${new Date(skill.timestamp).toLocaleDateString()}`}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => handleDeleteSkill(skill._id, skill.skillName, skill.userId?.name || 'Unknown')}
+                      className="px-3 py-1 rounded text-xs font-semibold bg-red-800 hover:bg-red-900 text-white"
+                    >
+                      🗑️ Delete
+                    </button>
                   </div>
                 </div>
               ))}
-              {users.length === 0 && <div className="text-center text-credWhite/60 py-8">No users found</div>}
+              {allSkills.length === 0 && <div className="text-center text-credWhite/60 py-8">No skills found</div>}
             </div>
           </div>
         )}
@@ -2217,40 +2712,242 @@ function AdminDashboard() {
                 <p>No skills pending verification</p>
               </div>
             ) : (
-              pendingSkills.map(skill => (
-                <div key={skill._id} className="p-4 bg-credGray rounded-xl">
-                  <div className="flex flex-wrap justify-between items-start gap-4">
-                    <div>
-                      <div className="font-bold text-lg">{skill.skillName}</div>
-                      <div className="text-sm text-credWhite/60">By: {skill.userId?.name} ({skill.userId?.email})</div>
-                      <div className="text-sm mt-2">{skill.description}</div>
-                      {skill.proofUrl && (
-                        <a href={skill.proofUrl} target="_blank" rel="noopener noreferrer"
-                          className="inline-block mt-2 text-blue-400 hover:underline text-sm">
-                          🔗 View Proof
-                        </a>
-                      )}
+              pendingSkills.map(skill => {
+                // Helper function to detect URL type
+                const getUrlType = (url) => {
+                  if (!url) return 'none';
+                  const lowerUrl = url.toLowerCase();
+
+                  // Image types
+                  if (lowerUrl.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/)) return 'image';
+
+                  // PDF
+                  if (lowerUrl.match(/\.pdf(\?.*)?$/)) return 'pdf';
+
+                  // YouTube
+                  if (lowerUrl.includes('youtube.com/watch') || lowerUrl.includes('youtu.be/')) return 'youtube';
+
+                  // Vimeo
+                  if (lowerUrl.includes('vimeo.com')) return 'vimeo';
+
+                  // Google Docs/Drive
+                  if (lowerUrl.includes('docs.google.com') || lowerUrl.includes('drive.google.com')) return 'gdrive';
+
+                  // LinkedIn
+                  if (lowerUrl.includes('linkedin.com')) return 'linkedin';
+
+                  // GitHub
+                  if (lowerUrl.includes('github.com')) return 'github';
+
+                  return 'link';
+                };
+
+                // Helper to get embed URL for YouTube
+                const getYoutubeEmbedUrl = (url) => {
+                  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+                  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
+                };
+
+                const urlType = getUrlType(skill.proofUrl);
+
+                return (
+                  <div key={skill._id} className="bg-credGray rounded-xl overflow-hidden">
+                    {/* Header Section */}
+                    <div className="p-4">
+                      <div className="flex flex-wrap justify-between items-start gap-4">
+                        <div className="flex-1 min-w-[200px]">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="font-bold text-lg text-credAccent">{skill.skillName}</div>
+                            {skill.category && (
+                              <span className="px-2 py-0.5 bg-credBlack/50 text-credWhite/60 rounded text-xs">
+                                {skill.category}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm text-credWhite/60 mb-1">
+                            <span className="font-medium">User:</span> {skill.userId?.name || 'Unknown'}
+                            <span className="text-credWhite/40 ml-1">({skill.userId?.email || 'No email'})</span>
+                          </div>
+                          {skill.description && (
+                            <p className="text-sm text-credWhite/70 mt-2">{skill.description}</p>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            onClick={() => handleVerifySkill(skill._id, 'verified')}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-1"
+                          >
+                            ✅ Approve
+                          </button>
+                          <button
+                            onClick={() => handleVerifySkill(skill._id, 'rejected')}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center gap-1"
+                          >
+                            ❌ Reject
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleVerifySkill(skill._id, 'verified')}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
-                      >
-                        ✅ Approve
-                      </button>
-                      <button
-                        onClick={() => handleVerifySkill(skill._id, 'rejected')}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700"
-                      >
-                        ❌ Reject
-                      </button>
-                    </div>
+
+                    {/* Evidence Section */}
+                    {skill.proofUrl ? (
+                      <div className="border-t border-credBlack/30">
+                        {/* Evidence Header */}
+                        <div className="px-4 py-3 bg-credBlack/30 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-credAccent font-semibold">📄 Evidence / Proof</span>
+                            <span className="px-2 py-0.5 bg-credBlack/50 text-credWhite/60 rounded text-xs capitalize">
+                              {urlType === 'gdrive' ? 'Google Drive' : urlType}
+                            </span>
+                          </div>
+                          <a
+                            href={skill.proofUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-1"
+                          >
+                            🔗 Open in New Tab
+                          </a>
+                        </div>
+
+                        {/* URL Display */}
+                        <div className="px-4 py-2 bg-credBlack/20">
+                          <div className="font-mono text-xs text-credWhite/50 break-all bg-credBlack/40 px-3 py-2 rounded">
+                            {skill.proofUrl}
+                          </div>
+                        </div>
+
+                        {/* Evidence Preview */}
+                        <div className="p-4">
+                          {/* Image Preview */}
+                          {urlType === 'image' && (
+                            <div className="bg-credBlack/30 rounded-lg p-4">
+                              <img
+                                src={skill.proofUrl}
+                                alt="Skill proof"
+                                className="max-w-full max-h-[400px] mx-auto rounded-lg shadow-lg object-contain"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'block';
+                                }}
+                              />
+                              <div className="hidden text-center text-credWhite/60 py-4">
+                                ⚠️ Image could not be loaded. Use "Open in New Tab" to view.
+                              </div>
+                            </div>
+                          )}
+
+                          {/* YouTube Embed */}
+                          {urlType === 'youtube' && (
+                            <div className="bg-credBlack/30 rounded-lg overflow-hidden">
+                              <div className="aspect-video">
+                                <iframe
+                                  src={getYoutubeEmbedUrl(skill.proofUrl)}
+                                  className="w-full h-full"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                  title="YouTube video proof"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* PDF Preview (iframe) */}
+                          {urlType === 'pdf' && (
+                            <div className="bg-credBlack/30 rounded-lg overflow-hidden">
+                              <iframe
+                                src={skill.proofUrl}
+                                className="w-full h-[500px] rounded-lg"
+                                title="PDF proof document"
+                              />
+                              <div className="text-center text-credWhite/50 text-sm py-2">
+                                If the PDF doesn't load, use "Open in New Tab" above
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Google Drive / Docs */}
+                          {urlType === 'gdrive' && (
+                            <div className="bg-credBlack/30 rounded-lg p-4">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="text-3xl">📁</div>
+                                <div>
+                                  <div className="font-semibold text-credWhite">Google Drive/Docs Link</div>
+                                  <div className="text-sm text-credWhite/60">Click "Open in New Tab" to view the document</div>
+                                </div>
+                              </div>
+                              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-blue-300 text-sm">
+                                💡 This appears to be a Google Drive or Google Docs link. For security reasons, these are best viewed directly in Google.
+                              </div>
+                            </div>
+                          )}
+
+                          {/* LinkedIn Profile */}
+                          {urlType === 'linkedin' && (
+                            <div className="bg-credBlack/30 rounded-lg p-4">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="text-3xl">💼</div>
+                                <div>
+                                  <div className="font-semibold text-credWhite">LinkedIn Profile</div>
+                                  <div className="text-sm text-credWhite/60">Professional profile link for verification</div>
+                                </div>
+                              </div>
+                              <div className="bg-blue-700/20 border border-blue-600/30 rounded-lg p-3 text-blue-300 text-sm">
+                                🔗 Click "Open in New Tab" to view the LinkedIn profile and verify credentials.
+                              </div>
+                            </div>
+                          )}
+
+                          {/* GitHub Profile/Repo */}
+                          {urlType === 'github' && (
+                            <div className="bg-credBlack/30 rounded-lg p-4">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="text-3xl">🐙</div>
+                                <div>
+                                  <div className="font-semibold text-credWhite">GitHub Link</div>
+                                  <div className="text-sm text-credWhite/60">Repository or profile for code skill verification</div>
+                                </div>
+                              </div>
+                              <div className="bg-gray-700/30 border border-gray-600/30 rounded-lg p-3 text-gray-300 text-sm">
+                                🔗 Click "Open in New Tab" to review the GitHub profile or repository.
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Generic Link */}
+                          {(urlType === 'link' || urlType === 'vimeo') && (
+                            <div className="bg-credBlack/30 rounded-lg p-4">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="text-3xl">🌐</div>
+                                <div>
+                                  <div className="font-semibold text-credWhite">External Link</div>
+                                  <div className="text-sm text-credWhite/60">Website or online resource for verification</div>
+                                </div>
+                              </div>
+                              <div className="bg-credBlack/50 border border-credWhite/10 rounded-lg p-3 text-credWhite/70 text-sm">
+                                🔗 Click "Open in New Tab" to review the linked content.
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border-t border-credBlack/30 p-4">
+                        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-yellow-300">
+                          ⚠️ <strong>No proof URL provided</strong> - This skill was submitted without any evidence.
+                          Consider rejecting or asking the user to resubmit with proper documentation.
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
+
       </div>
     </div>
   );

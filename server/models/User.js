@@ -32,7 +32,9 @@ const userSchema = new mongoose.Schema({
   isAdmin: { type: Boolean, default: false },
   isVerified: { type: Boolean, default: false },
   verifiedAt: { type: Date },
+  verificationRequestedAt: { type: Date }, // When user requested verification
   // Account status
+  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Users this user has blocked
   isBanned: { type: Boolean, default: false },
   bannedAt: { type: Date },
   bannedReason: { type: String },

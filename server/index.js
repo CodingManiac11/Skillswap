@@ -90,6 +90,28 @@ io.on('connection', (socket) => {
     console.log(`📨 Message from ${senderId} to ${receiverId}: ${message}`);
 
     try {
+      // Check if either user has blocked the other
+      const User = require('./models/User');
+      const sender = await User.findById(senderId);
+      const receiver = await User.findById(receiverId);
+
+      if (!sender || !receiver) {
+        socket.emit('message_error', { error: 'User not found' });
+        return;
+      }
+
+      // Check if sender is blocked by receiver
+      if (receiver.blockedUsers && receiver.blockedUsers.some(id => id.toString() === senderId)) {
+        socket.emit('message_error', { error: 'You cannot send messages to this user.', blocked: true });
+        return;
+      }
+
+      // Check if receiver is blocked by sender
+      if (sender.blockedUsers && sender.blockedUsers.some(id => id.toString() === receiverId)) {
+        socket.emit('message_error', { error: 'You have blocked this user. Unblock them to send messages.', blocked: true });
+        return;
+      }
+
       // Save message to database
       const Message = require('./models/Message');
       const newMessage = new Message({

@@ -7,7 +7,7 @@ const router = express.Router();
 // Get all skill posts
 router.get('/', async (req, res) => {
   try {
-    const skills = await Skill.find().populate('userId', 'name location');
+    const skills = await Skill.find().populate('userId', 'name location isVerified');
     res.json(skills);
   } catch (err) {
     res.status(500).json({ message: 'Server error.' });
@@ -17,14 +17,32 @@ router.get('/', async (req, res) => {
 // Post a new skill (offer/request)
 router.post('/', async (req, res) => {
   try {
-    const { userId, type, skillName, description, availability, location } = req.body;
+    const { userId, type, skillName, description, availability, location, proofUrl, category, experienceLevel } = req.body;
     if (!userId || !type || !skillName) {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
-    const skill = new Skill({ userId, type, skillName, description, availability, location });
+
+    // Set verification status to pending if proof URL is provided
+    const verificationStatus = proofUrl && proofUrl.trim() ? 'pending' : 'unverified';
+
+    const skill = new Skill({
+      userId,
+      type,
+      skillName,
+      description,
+      availability,
+      location,
+      proofUrl: proofUrl || '',
+      category: category || 'other',
+      experienceLevel: experienceLevel || 'intermediate',
+      verificationStatus
+    });
     await skill.save();
-    res.status(201).json({ message: 'Skill posted successfully.' });
+
+    console.log(`Skill posted: ${skillName} by ${userId}, proofUrl: ${proofUrl || 'none'}, status: ${verificationStatus}`);
+    res.status(201).json({ message: 'Skill posted successfully.', skill });
   } catch (err) {
+    console.error('Error posting skill:', err);
     res.status(500).json({ message: 'Server error.' });
   }
 });
@@ -32,7 +50,7 @@ router.post('/', async (req, res) => {
 // Get skills posted by a specific user
 router.get('/user/:userId', async (req, res) => {
   try {
-    const skills = await Skill.find({ userId: req.params.userId }).populate('userId', 'name location').sort('-timestamp');
+    const skills = await Skill.find({ userId: req.params.userId }).populate('userId', 'name location isVerified').sort('-timestamp');
     res.json(skills);
   } catch (err) {
     res.status(500).json({ message: 'Server error.' });

@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Who receives notification
     type: {
         type: String,
-        enum: ['match_request', 'match_accepted', 'match_declined', 'new_message'],
+        enum: ['match_request', 'match_accepted', 'match_declined', 'new_message', 'session_complete', 'review_received', 'skill_verified', 'skill_rejected'],
         required: true
     },
     title: { type: String, required: true },

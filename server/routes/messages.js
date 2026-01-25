@@ -1,36 +1,54 @@
 const express = require('express');
 const Message = require('../models/Message');
+const User = require('../models/User');
 const router = express.Router();
 
 // Send a message
 router.post('/send', async (req, res) => {
   try {
     const { senderId, receiverId, message } = req.body;
-    console.log('Message send request:', { senderId, receiverId, message }); // Debug log
+    console.log('Message send request:', { senderId, receiverId, message });
 
     if (!senderId || !receiverId || !message) {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
 
+    // Check if either user has blocked the other
+    const sender = await User.findById(senderId);
+    const receiver = await User.findById(receiverId);
+
+    if (!sender || !receiver) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Check if sender is blocked by receiver
+    if (receiver.blockedUsers && receiver.blockedUsers.some(id => id.toString() === senderId)) {
+      return res.status(403).json({ message: 'You cannot send messages to this user.', blocked: true });
+    }
+
+    // Check if receiver is blocked by sender
+    if (sender.blockedUsers && sender.blockedUsers.some(id => id.toString() === receiverId)) {
+      return res.status(403).json({ message: 'You have blocked this user. Unblock them to send messages.', blocked: true });
+    }
+
     const msg = new Message({ senderId, receiverId, message });
     const savedMessage = await msg.save();
-    console.log('Message saved:', savedMessage); // Debug log
+    console.log('Message saved:', savedMessage);
 
     res.status(201).json({ message: 'Message sent.', data: savedMessage });
   } catch (err) {
-    console.error('Error sending message:', err); // Debug log
+    console.error('Error sending message:', err);
     res.status(500).json({ message: 'Server error.', error: err.message });
   }
 });
 
-// IMPORTANT: This route MUST come before /:userId/:otherUserId to avoid "all" being matched as otherUserId
+// IMPORTANT: Routes with specific path segments MUST come before generic /:userId/:otherUserId
 // Get all unique conversations for a user (including accepted matches)
 router.get('/:userId/all', async (req, res) => {
   try {
     const userId = req.params.userId;
     console.log('Fetching conversations for user:', userId);
 
-    // Validate userId is a proper ObjectId
     const mongoose = require('mongoose');
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ message: 'Invalid user ID format' });
@@ -38,17 +56,14 @@ router.get('/:userId/all', async (req, res) => {
 
     const userObjectId = new mongoose.Types.ObjectId(userId);
 
-    // Get existing message conversations
     const messages = await Message.find({
       $or: [{ senderId: userObjectId }, { receiverId: userObjectId }]
     }).sort('-timestamp').populate('senderId', 'name').populate('receiverId', 'name');
 
     console.log('Found messages:', messages.length);
 
-    // Group by other user and count unread
     const convMap = {};
     messages.forEach(msg => {
-      // Handle cases where user might not be populated
       if (!msg.senderId || !msg.receiverId) return;
 
       const senderId = msg.senderId._id ? msg.senderId._id.toString() : msg.senderId.toString();
@@ -71,15 +86,12 @@ router.get('/:userId/all', async (req, res) => {
         };
       }
 
-      // Count unread messages (messages TO current user that are not read)
       if (!isCurrentUserSender && !msg.isRead) {
         convMap[otherUserId].unreadCount++;
       }
     });
 
-    // Also get accepted matches that don't have messages yet
     const Match = require('../models/Match');
-
     const acceptedMatches = await Match.find({
       $or: [{ requesterId: userObjectId }, { offererId: userObjectId }],
       status: 'accepted'
@@ -87,7 +99,6 @@ router.get('/:userId/all', async (req, res) => {
 
     console.log('Found accepted matches:', acceptedMatches.length);
 
-    // Add accepted matches to conversation list if not already there
     for (const match of acceptedMatches) {
       if (!match.requesterId || !match.offererId) continue;
 
@@ -113,7 +124,6 @@ router.get('/:userId/all', async (req, res) => {
     }
 
     const conversations = Object.values(convMap).sort((a, b) => new Date(b.lastTimestamp) - new Date(a.lastTimestamp));
-
     console.log('Total conversations (messages + matches):', conversations.length);
     res.json(conversations);
   } catch (err) {
@@ -122,39 +132,16 @@ router.get('/:userId/all', async (req, res) => {
   }
 });
 
-// Get all messages with a user (threaded)
-router.get('/:userId/:otherUserId', async (req, res) => {
-  try {
-    const { userId, otherUserId } = req.params;
-    console.log('Fetching messages between:', userId, 'and', otherUserId); // Debug log
-
-    const messages = await Message.find({
-      $or: [
-        { senderId: userId, receiverId: otherUserId },
-        { senderId: otherUserId, receiverId: userId },
-      ],
-    }).sort('timestamp');
-
-    console.log('Found messages:', messages.length); // Debug log
-    res.json(messages);
-  } catch (err) {
-    console.error('Error fetching messages:', err); // Debug log
-    res.status(500).json({ message: 'Server error.', error: err.message });
-  }
-});
-
 // Mark all messages from a sender as read
 router.post('/mark-read/:userId/:otherUserId', async (req, res) => {
   try {
     const { userId, otherUserId } = req.params;
 
-    // Mark all messages FROM otherUser TO currentUser as read
-    // Use $ne: true to catch both false and undefined (old messages)
     const result = await Message.updateMany(
       {
         senderId: otherUserId,
         receiverId: userId,
-        isRead: { $ne: true }  // Match false OR undefined
+        isRead: { $ne: true }
       },
       { isRead: true }
     );
@@ -167,4 +154,109 @@ router.post('/mark-read/:userId/:otherUserId', async (req, res) => {
   }
 });
 
-module.exports = router; 
+// BLOCK ROUTES - Must come BEFORE /:userId/:otherUserId to avoid "block-status" being matched as userId
+
+// Check if a user is blocked
+router.get('/block-status/:userId/:otherUserId', async (req, res) => {
+  try {
+    const { userId, otherUserId } = req.params;
+    console.log('Checking block status:', userId, otherUserId);
+
+    const currentUser = await User.findById(userId);
+    const otherUser = await User.findById(otherUserId);
+
+    if (!currentUser || !otherUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const iBlockedThem = currentUser.blockedUsers && currentUser.blockedUsers.some(id => id.toString() === otherUserId);
+    const theyBlockedMe = otherUser.blockedUsers && otherUser.blockedUsers.some(id => id.toString() === userId);
+
+    res.json({
+      iBlockedThem,
+      theyBlockedMe,
+      canMessage: !iBlockedThem && !theyBlockedMe
+    });
+  } catch (err) {
+    console.error('Error checking block status:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Block a user
+router.post('/block/:userId/:otherUserId', async (req, res) => {
+  try {
+    const { userId, otherUserId } = req.params;
+    console.log('Block request:', userId, 'blocking', otherUserId);
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.blockedUsers && user.blockedUsers.some(id => id.toString() === otherUserId)) {
+      return res.json({ message: 'User already blocked', blocked: true });
+    }
+
+    if (!user.blockedUsers) {
+      user.blockedUsers = [];
+    }
+    user.blockedUsers.push(otherUserId);
+    await user.save();
+
+    console.log(`User ${userId} blocked user ${otherUserId}`);
+    res.json({ message: 'User blocked successfully', blocked: true });
+  } catch (err) {
+    console.error('Error blocking user:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Unblock a user
+router.post('/unblock/:userId/:otherUserId', async (req, res) => {
+  try {
+    const { userId, otherUserId } = req.params;
+    console.log('Unblock request:', userId, 'unblocking', otherUserId);
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.blockedUsers) {
+      user.blockedUsers = user.blockedUsers.filter(id => id.toString() !== otherUserId);
+      await user.save();
+    }
+
+    console.log(`User ${userId} unblocked user ${otherUserId}`);
+    res.json({ message: 'User unblocked successfully', blocked: false });
+  } catch (err) {
+    console.error('Error unblocking user:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// GENERIC ROUTES - Must come LAST because /:userId/:otherUserId matches anything
+
+// Get all messages with a user (threaded)
+router.get('/:userId/:otherUserId', async (req, res) => {
+  try {
+    const { userId, otherUserId } = req.params;
+    console.log('Fetching messages between:', userId, 'and', otherUserId);
+
+    const messages = await Message.find({
+      $or: [
+        { senderId: userId, receiverId: otherUserId },
+        { senderId: otherUserId, receiverId: userId },
+      ],
+    }).sort('timestamp');
+
+    console.log('Found messages:', messages.length);
+    res.json(messages);
+  } catch (err) {
+    console.error('Error fetching messages:', err);
+    res.status(500).json({ message: 'Server error.', error: err.message });
+  }
+});
+
+module.exports = router;

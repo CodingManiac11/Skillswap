@@ -47,7 +47,15 @@ router.get('/stats', isAdmin, async (req, res) => {
         const totalMatches = await Match.countDocuments();
         const acceptedMatches = await Match.countDocuments({ status: 'accepted' });
         const completedMatches = await Match.countDocuments({ status: 'completed' });
-        const pendingVerifications = await Skill.countDocuments({ verificationStatus: 'pending' });
+        const pendingVerifications = await Skill.countDocuments({
+            proofUrl: { $exists: true, $ne: '' },
+            $or: [
+                { verificationStatus: 'pending' },
+                { verificationStatus: { $exists: false } },
+                { verificationStatus: null },
+                { verificationStatus: '' }
+            ]
+        });
         const verifiedSkills = await Skill.countDocuments({ verificationStatus: 'verified' });
         const bannedUsers = await User.countDocuments({ isBanned: true });
 
@@ -176,13 +184,20 @@ router.delete('/users/:id', isAdmin, async (req, res) => {
 // Get skills pending verification
 router.get('/skills/pending', isAdmin, async (req, res) => {
     try {
+        // Find skills with proofUrl that aren't already verified or rejected
         const skills = await Skill.find({
-            verificationStatus: 'pending',
-            proofUrl: { $exists: true, $ne: '' }
+            proofUrl: { $exists: true, $ne: '' },
+            $or: [
+                { verificationStatus: 'pending' },
+                { verificationStatus: { $exists: false } },
+                { verificationStatus: null },
+                { verificationStatus: '' }
+            ]
         })
             .populate('userId', 'name email isVerified')
             .sort('-timestamp');
 
+        console.log(`Found ${skills.length} skills pending verification`);
         res.json(skills);
     } catch (err) {
         console.error('Error getting pending skills:', err);
@@ -257,6 +272,71 @@ router.put('/skills/:id/verify', isAdmin, async (req, res) => {
     }
 });
 
+// Delete a skill (admin)
+router.delete('/skills/:id', isAdmin, async (req, res) => {
+    try {
+        const skill = await Skill.findById(req.params.id).populate('userId', 'name email');
+        if (!skill) {
+            return res.status(404).json({ message: 'Skill not found.' });
+        }
+
+        const skillInfo = {
+            skillName: skill.skillName,
+            type: skill.type,
+            userName: skill.userId?.name || 'Unknown'
+        };
+
+        // Delete any matches associated with this skill
+        await Match.deleteMany({ skillId: skill._id });
+
+        // Delete the skill
+        await Skill.findByIdAndDelete(req.params.id);
+
+        console.log(`Admin deleted skill: ${skillInfo.skillName} (${skillInfo.type}) from user ${skillInfo.userName}`);
+        res.json({
+            message: `Skill "${skillInfo.skillName}" deleted successfully.`,
+            deletedSkill: skillInfo
+        });
+    } catch (err) {
+        console.error('Error deleting skill:', err);
+        res.status(500).json({ message: 'Server error.' });
+    }
+});
+
+// Get all skills (for admin management)
+router.get('/skills/all', isAdmin, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const search = req.query.search || '';
+
+        const query = search ? {
+            $or: [
+                { skillName: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } }
+            ]
+        } : {};
+
+        const skills = await Skill.find(query)
+            .populate('userId', 'name email')
+            .sort('-timestamp')
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        const total = await Skill.countDocuments(query);
+
+        res.json({
+            skills,
+            total,
+            page,
+            pages: Math.ceil(total / limit)
+        });
+    } catch (err) {
+        console.error('Error getting all skills:', err);
+        res.status(500).json({ message: 'Server error.' });
+    }
+});
+
 // ==================== CHECK ADMIN STATUS ====================
 
 // Check if current user is admin
@@ -284,6 +364,75 @@ router.get('/check', async (req, res) => {
     } catch (err) {
         console.error('Error checking admin:', err);
         res.json({ isAdmin: false });
+    }
+});
+
+// ==================== USER VERIFICATION REQUESTS ====================
+
+// User requests verification (sends notification to admin)
+router.post('/verification-request', async (req, res) => {
+    try {
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ message: 'User ID required.' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        if (user.isVerified) {
+            return res.json({ message: 'You are already verified!' });
+        }
+
+        // Check if user already requested recently (within 24 hours)
+        if (user.verificationRequestedAt) {
+            const hoursSinceRequest = (Date.now() - new Date(user.verificationRequestedAt).getTime()) / (1000 * 60 * 60);
+            if (hoursSinceRequest < 24) {
+                return res.json({ message: 'Verification request already sent. Please wait for admin review.' });
+            }
+        }
+
+        // Mark that user requested verification
+        user.verificationRequestedAt = new Date();
+        await user.save();
+
+        // Create notification for admin
+        const Notification = require('../models/Notification');
+
+        // Find admin users to notify
+        const adminUsers = await User.find({
+            $or: [
+                { isAdmin: true },
+                { email: { $in: ADMIN_EMAILS } }
+            ]
+        });
+
+        // Send notification to all admins
+        for (const admin of adminUsers) {
+            const notification = new Notification({
+                userId: admin._id,
+                type: 'match_request', // Using existing enum type
+                title: '🔒 Verification Request',
+                message: `${user.name} (${user.email}) is requesting account verification.`,
+                relatedUserId: user._id
+            });
+            await notification.save();
+
+            // Emit real-time notification
+            const io = req.app.get('io');
+            if (io) {
+                io.to(admin._id.toString()).emit('notification', notification);
+            }
+        }
+
+        console.log(`Verification request from ${user.name} (${user.email}) sent to ${adminUsers.length} admins`);
+        res.json({ message: 'Verification request sent! An admin will review your account soon.' });
+    } catch (err) {
+        console.error('Error processing verification request:', err);
+        res.status(500).json({ message: 'Server error.' });
     }
 });
 

@@ -554,7 +554,11 @@ router.post('/complete', async (req, res) => {
 
     // Get user names for notification
     const currentUser = await User.findById(userId);
-    const otherUserId = match.requesterId.toString() === userId ? match.offererId : match.requesterId;
+    const reqIdStr = match.requesterId?.toString() || '';
+    const offIdStr = match.offererId?.toString() || '';
+    const otherUserId = reqIdStr === userId ? offIdStr : reqIdStr;
+
+    console.log(`Sending notification to: ${otherUserId}, from: ${userId}`);
 
     // Create notification for the other user
     const Notification = require('../models/Notification');
@@ -562,15 +566,17 @@ router.post('/complete', async (req, res) => {
       userId: otherUserId,
       type: 'session_complete',
       title: 'Session Completed! ⭐',
-      message: `${currentUser.name} marked your "${match.skillName}" session as complete. Please leave a review!`,
+      message: `${currentUser?.name || 'User'} marked your "${match.skillName}" session as complete. Please leave a review!`,
       relatedUserId: userId,
       relatedMatchId: match._id
     });
     await notification.save();
+    console.log('Notification saved:', notification._id);
 
     // Emit real-time notification
     if (io) {
-      io.to(otherUserId.toString()).emit('notification', notification);
+      io.to(otherUserId).emit('notification', notification);
+      console.log('Real-time notification emitted to:', otherUserId);
     }
 
     // Create system message in chat
