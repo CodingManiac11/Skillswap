@@ -32,13 +32,31 @@ function Landing() {
   );
 }
 
+// Password validation helper
+const validatePassword = (password) => {
+  const minLength = password.length >= 8;
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  return { minLength, hasUpper, hasLower, hasNumber, hasSpecial, isValid: minLength && hasUpper && hasLower && hasNumber && hasSpecial };
+};
+
 function SignUp() {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [passwordStrength, setPasswordStrength] = useState({ minLength: false, hasUpper: false, hasLower: false, hasNumber: false, hasSpecial: false, isValid: false });
   const navigate = useNavigate();
 
-  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+    if (name === 'password') {
+      setPasswordStrength(validatePassword(value));
+    }
+  };
+
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
@@ -49,6 +67,13 @@ function SignUp() {
     const isAllowedEmail = email.endsWith('@gmail.com') || email === 'admin@skillswap.com';
     if (!isAllowedEmail) {
       setError('Only Gmail addresses are allowed. Please use a @gmail.com email.');
+      setLoading(false);
+      return;
+    }
+
+    // Validate password strength
+    if (!passwordStrength.isValid) {
+      setError('Password does not meet the requirements.');
       setLoading(false);
       return;
     }
@@ -84,9 +109,19 @@ function SignUp() {
           <div>
             <label className="block mb-1 text-credWhite/80">Password</label>
             <input name="password" type="password" required value={form.password} onChange={handleChange} className="w-full px-4 py-2 rounded-lg bg-credBlack text-credWhite border border-credGray focus:outline-none focus:ring-2 focus:ring-credAccent" />
+            {/* Password strength indicator */}
+            {form.password && (
+              <div className="mt-2 text-xs space-y-1">
+                <div className={passwordStrength.minLength ? 'text-green-400' : 'text-red-400'}>• At least 8 characters</div>
+                <div className={passwordStrength.hasUpper ? 'text-green-400' : 'text-red-400'}>• At least 1 uppercase letter</div>
+                <div className={passwordStrength.hasLower ? 'text-green-400' : 'text-red-400'}>• At least 1 lowercase letter</div>
+                <div className={passwordStrength.hasNumber ? 'text-green-400' : 'text-red-400'}>• At least 1 number</div>
+                <div className={passwordStrength.hasSpecial ? 'text-green-400' : 'text-red-400'}>• At least 1 special character (!@#$%^&*)</div>
+              </div>
+            )}
           </div>
           {error && <div className="text-red-400 text-sm text-center">{error}</div>}
-          <button type="submit" className="w-full py-3 rounded-full bg-credAccent text-credBlack font-semibold text-lg shadow-lg hover:scale-105 transition-transform" disabled={loading}>{loading ? 'Signing Up...' : 'Sign Up'}</button>
+          <button type="submit" className="w-full py-3 rounded-full bg-credAccent text-credBlack font-semibold text-lg shadow-lg hover:scale-105 transition-transform" disabled={loading || !passwordStrength.isValid}>{loading ? 'Signing Up...' : 'Sign Up'}</button>
         </form>
         <div className="text-center mt-4 text-credWhite/70">
           Already have an account?{' '}
@@ -860,21 +895,15 @@ function SkillBoard() {
                   {/* Type Badge */}
                   <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide" style={{ background: skill.type === 'offer' ? '#2ed573' : '#232326', color: skill.type === 'offer' ? '#18181a' : '#f7f7fa' }}>{skill.type}</span>
 
-                  {/* Verification Badge */}
-                  {skill.verificationStatus === 'verified' && (
+                  {/* Verification Badge - Only show for offer-type skills that are admin-verified */}
+                  {skill.type === 'offer' && skill.verificationStatus === 'verified' && (
                     <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30">
                       ✅ Verified
                     </span>
                   )}
-                  {skill.verificationStatus === 'pending' && (
+                  {skill.type === 'offer' && skill.verificationStatus === 'pending' && (
                     <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                       ⏳ Pending
-                    </span>
-                  )}
-                  {/* Unverified badge - only show if skill has no verification */}
-                  {(!skill.verificationStatus || skill.verificationStatus === 'unverified') && (
-                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                      ❓ Unverified
                     </span>
                   )}
 
@@ -2053,41 +2082,8 @@ function Profile() {
         {/* Profile Information */}
         <div className="bg-credGray rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4">
-            <div className="flex items-center gap-3">
-              <h2 className="text-3xl font-bold">Your Profile</h2>
-              {/* Verification Status Badge */}
-              {profile?.isVerified ? (
-                <span className="px-3 py-1 rounded-full text-sm font-semibold bg-green-500/20 text-green-400 border border-green-500/30">
-                  ✅ Verified
-                </span>
-              ) : (
-                <span className="px-3 py-1 rounded-full text-sm font-semibold bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                  ❓ Unverified
-                </span>
-              )}
-            </div>
+            <h2 className="text-3xl font-bold">Your Profile</h2>
             <div className="flex gap-2">
-              {/* Request Verification Button */}
-              {!profile?.isVerified && (
-                <button
-                  onClick={async () => {
-                    try {
-                      const res = await fetch('/api/admin/verification-request', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId })
-                      });
-                      const data = await res.json();
-                      alert(data.message || 'Verification request sent to admin!');
-                    } catch (err) {
-                      alert('Failed to send verification request');
-                    }
-                  }}
-                  className="px-4 py-2 rounded-full bg-blue-600 text-white font-semibold hover:scale-105 transition-transform"
-                >
-                  🔒 Request Verification
-                </button>
-              )}
               {!isEditing && (
                 <button
                   onClick={() => setIsEditing(true)}
@@ -3212,6 +3208,20 @@ function MainNav() {
 }
 
 function App() {
+  // Auto-logout on page close or navigation away
+  useEffect(() => {
+    const handlePageLeave = () => {
+      localStorage.removeItem('userId');
+      localStorage.removeItem('token');
+    };
+
+    window.addEventListener('beforeunload', handlePageLeave);
+
+    return () => {
+      window.removeEventListener('beforeunload', handlePageLeave);
+    };
+  }, []);
+
   return (
     <>
       <MainNav />

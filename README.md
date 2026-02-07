@@ -28,7 +28,7 @@
 - **Request Skills** - Find teachers for skills you want to learn
 - **Categories** - Technology, Arts, Languages, Business, Health, Lifestyle, and more
 - **Experience Levels** - Beginner, Intermediate, Expert badges
-- **Verification System** - Submit proof links for admin verification (✅ Verified, ⏳ Pending, ❓ Unverified)
+- **Verification System** - Admin verifies skill proof links for offerers (✅ Verified, ⏳ Pending)
 
 ### 🔍 Smart Matching
 - **Auto-matching** - Finds users whose offers match your requests (and vice versa)
@@ -49,6 +49,11 @@
 - **Skill Portfolio** - View all your offered/requested skills
 - **Rating & Reviews** - Star ratings from skill exchange partners
 - **Edit Skills** - Update skill details from profile
+
+### 🔒 Security
+- **Strong Password Policy** - Minimum 8 chars, uppercase, lowercase, number, special character
+- **Auto-Logout** - Automatic session clear on page close for security
+- **Gmail-Only Registration** - Only @gmail.com addresses allowed
 
 ### 🔔 Live Notifications
 - **Match Requests** - When someone wants to exchange skills
@@ -177,6 +182,8 @@ npm start
 - [x] Filter persistence
 - [x] Success highlighting for new skills
 - [x] Mobile-responsive design
+- [x] Strong password validation
+- [x] Auto-logout on page close
 
 ---
 

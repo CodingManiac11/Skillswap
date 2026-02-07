@@ -12,6 +12,15 @@ router.post('/register', async (req, res) => {
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'All fields are required.' });
     }
+
+    // Validate password strength
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+        message: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character.'
+      });
+    }
+
     // Only allow Gmail addresses
     if (!email.toLowerCase().endsWith('@gmail.com')) {
       return res.status(400).json({ message: 'Only Gmail addresses are allowed. Please use a @gmail.com email.' });
